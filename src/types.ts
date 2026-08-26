@@ -6,6 +6,12 @@ export type ScreenEffect = 'none' | 'shake' | 'flash' | 'fade_black';
 
 export type VariableOperation = 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'toggle';
 
+export interface BranchJumpCondition {
+  variableName: string;
+  operator: 'equals' | 'greater' | 'less' | 'not_equals';
+  value: boolean | number | string;
+}
+
 export interface VariableCondition {
   variableName: string;
   operator: 'equals' | 'greater' | 'less' | 'not_equals';
@@ -48,7 +54,7 @@ export interface DialogueEvent {
   effect?: ScreenEffect;
   jumpToBranchId?: string;
   jumpToEventIndex?: number;
-  jumpCondition?: BranchJumpCondition; 
+  jumpCondition?: BranchJumpCondition;
   condition?: VariableCondition;
 }
 
