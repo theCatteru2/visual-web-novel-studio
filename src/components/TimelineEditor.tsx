@@ -9,12 +9,11 @@ import {
   CharacterAnimation, 
   StageCharacterInstance, 
   TimelineEvent, 
-  ScreenEffect,
-  VariableChange
+  VariableChange,
+  ScreenEffect
 } from '../types';
 import VariablesModal from './VariablesModal';
 
-// 7 Posiciones Horizontales
 const SLOTS_X: { slot: MagneticSlot; label: string; xPercent: number }[] = [
   { slot: 'far-left', label: 'Ext-Izq', xPercent: 12 },
   { slot: 'left', label: 'Izq', xPercent: 25 },
@@ -25,7 +24,6 @@ const SLOTS_X: { slot: MagneticSlot; label: string; xPercent: number }[] = [
   { slot: 'far-right', label: 'Ext-Der', xPercent: 88 }
 ];
 
-// 7 Posiciones Verticales
 const SLOTS_Y: { slot: VerticalSlot; label: string; bottomPercent: number; yDetectPercent: number }[] = [
   { slot: 'deep_sink', label: 'Bajo Pantalla', bottomPercent: -25, yDetectPercent: 95 },
   { slot: 'sink', label: 'Hundido', bottomPercent: -12, yDetectPercent: 85 },
@@ -923,41 +921,39 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* Caja de Diálogo WYSIWYG en el pie exacto de pantalla */}
+          {/* Caja de Diálogo con Vías y Efectos */}
           {currentEvent?.type === 'dialogue' && (
             <div style={{
               position: 'absolute',
-              bottom: 10,
+              bottom: 8,
               left: '50%',
               transform: 'translateX(-50%)',
               width: '94%',
               background: 'rgba(10, 10, 15, 0.94)',
-              backdropFilter: 'blur(10px)',
+              backdropFilter: 'blur(8px)',
               border: `2px solid ${project.characters[currentEvent.speakerId]?.color || '#3b82f6'}`,
               borderRadius: 12,
               padding: '8px 12px',
               zIndex: 30,
-              boxSizing: 'border-box',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.8)'
+              boxSizing: 'border-box'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, gap: 4, flexWrap: 'wrap' }}>
                 <select
                   value={currentEvent.speakerId}
                   onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, speakerId: e.target.value })}
                   style={{
-                    background: 'transparent',
+                    background: '#1a1a24',
                     color: project.characters[currentEvent.speakerId]?.color || '#fff',
-                    border: 'none',
-                    borderRadius: 4,
-                    fontSize: 13,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    outline: 'none'
+                    border: '1px solid #333',
+                    borderRadius: 6,
+                    padding: '2px 8px',
+                    fontSize: 12,
+                    fontWeight: 'bold'
                   }}
                 >
-                  <option value="narrator" style={{ background: '#111', color: '#fff' }}>Narrador</option>
+                  <option value="narrator">Narrador</option>
                   {Object.values(project.characters).map(c => (
-                    <option key={c.id} value={c.id} style={{ background: '#111', color: '#fff' }}>{c.name}</option>
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
 
@@ -966,10 +962,10 @@ export default function TimelineEditor() {
                   <select
                     value={currentEvent.jumpToBranchId || ''}
                     onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, jumpToBranchId: e.target.value || undefined, jumpToEventIndex: 0 })}
-                    style={{ background: '#1a1a26', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 9, padding: '1px 3px' }}
+                    style={{ background: '#1a1a26', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '2px 4px' }}
                   >
-                    <option value="">➡️ Seguir Recto</option>
-                    <option value="main">🌿 Vía Tronco</option>
+                    <option value="">➡️ Vía Directa</option>
+                    <option value="main">🌿 Tronco</option>
                     {Object.values(branchesMap).map(b => (
                       <option key={b.id} value={b.id}>🔀 {b.name}</option>
                     ))}
@@ -979,7 +975,7 @@ export default function TimelineEditor() {
                     <select
                       value={currentEvent.jumpToEventIndex ?? 0}
                       onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, jumpToEventIndex: Number(e.target.value) })}
-                      style={{ width: 75, background: '#1a1a26', color: '#38bdf8', border: '1px solid #333', borderRadius: 4, fontSize: 9, padding: '1px 3px' }}
+                      style={{ width: 85, background: '#1a1a26', color: '#38bdf8', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '2px 4px' }}
                     >
                       {Array.from({ length: getTargetBranchEventsCount(currentEvent.jumpToBranchId) }).map((_, i) => (
                         <option key={i} value={i}>Viñeta #{i + 1}</option>
@@ -987,13 +983,12 @@ export default function TimelineEditor() {
                     </select>
                   )}
 
-                  {/* Efectos de Escena */}
                   <select
                     value={currentEvent.effect || 'none'}
                     onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, effect: e.target.value as ScreenEffect })}
-                    style={{ background: '#1a1a26', color: '#aaa', border: '1px solid #333', borderRadius: 4, fontSize: 9, padding: '1px 3px' }}
+                    style={{ background: '#1a1a26', color: '#aaa', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '2px 4px' }}
                   >
-                    <option value="none">Efecto</option>
+                    <option value="none">Sin Efecto</option>
                     <option value="shake">💥 Temblor</option>
                     <option value="flash">⚡ Flash</option>
                     <option value="fade_black">🌑 Fundido</option>
@@ -1004,7 +999,7 @@ export default function TimelineEditor() {
               <textarea 
                 value={currentEvent.text}
                 onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, text: e.target.value })}
-                placeholder="Escribe el diálogo de la escena aquí..."
+                placeholder="Escribe el diálogo aquí..."
                 rows={2}
                 style={{
                   width: '100%',
@@ -1014,8 +1009,7 @@ export default function TimelineEditor() {
                   color: '#fff',
                   fontSize: 13,
                   resize: 'none',
-                  boxSizing: 'border-box',
-                  lineHeight: 1.3
+                  boxSizing: 'border-box'
                 }}
               />
             </div>
@@ -1023,7 +1017,7 @@ export default function TimelineEditor() {
         </div>
       </div>
 
-      {/* Menú Modal de Edición del Personaje (Presionar y Mantener) */}
+      {/* Menú Modal de Edición del Personaje con Importación Directa de Sprites */}
       {editingCharInstance && editingCharDef && (
         <div 
           onClick={() => setActiveEditingCharId(null)}
@@ -1047,7 +1041,7 @@ export default function TimelineEditor() {
               borderRadius: 14,
               padding: 14,
               width: '100%',
-              maxWidth: 380,
+              maxWidth: 400,
               display: 'flex',
               flexDirection: 'column',
               gap: 10,
@@ -1062,8 +1056,44 @@ export default function TimelineEditor() {
             </div>
 
             <div>
-              <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Expresión:</label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label style={{ fontSize: 11, color: '#aaa' }}>Expresiones disponibles:</label>
+                <button
+                  onClick={() => {
+                    const tag = prompt('Nombre para la nueva expresión (ej. feliz, enojada):');
+                    if (!tag) return;
+                    
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e: any) => {
+                      const file = e.target?.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        if (typeof evt.target?.result === 'string') {
+                          const spriteUrl = evt.target.result;
+                          const updatedChar = {
+                            ...editingCharDef,
+                            expressions: { ...editingCharDef.expressions, [tag.toLowerCase()]: spriteUrl }
+                          };
+                          setProject(prev => ({
+                            ...prev,
+                            characters: { ...prev.characters, [editingCharDef.id]: updatedChar }
+                          }));
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    };
+                    input.click();
+                  }}
+                  style={{ background: 'rgba(56,189,248,0.15)', border: '1px dashed #38bdf8', color: '#38bdf8', borderRadius: 4, padding: '2px 6px', fontSize: 9, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  + Importar Sprite
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', maxHeight: 120, overflowY: 'auto' }}>
                 {Object.entries(editingCharDef.expressions || {}).map(([exprKey, spriteUrl]) => (
                   <div
                     key={exprKey}
@@ -1117,7 +1147,7 @@ export default function TimelineEditor() {
             </div>
 
             <div>
-              <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Tamaño:</label>
+              <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Escala:</label>
               <div style={{ display: 'flex', gap: 4 }}>
                 {SCALES.map(s => (
                   <button
