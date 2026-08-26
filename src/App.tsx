@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { NovelProvider } from './context/NovelContext';
+import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import TimelineEditor from './components/TimelineEditor';
 import PlayerView from './components/PlayerView';
 import CharacterTreeModal from './components/CharacterTreeModal';
+import PublishModal from './components/PublishModal';
+import CommunityFeed from './components/CommunityFeed';
 
 function MainStudio() {
-  const [mode, setMode] = useState<'editor' | 'player'>('editor');
+  const [mode, setMode] = useState<'editor' | 'player' | 'community'>('editor');
   const [isCharTreeOpen, setIsCharTreeOpen] = useState(false);
+  const [isPublishOpen, setIsPublishOpen] = useState(false);
 
   return (
     <div style={{
@@ -22,23 +26,27 @@ function MainStudio() {
       <Navbar 
         mode={mode} 
         setMode={setMode} 
-        onOpenCharacterTree={() => setIsCharTreeOpen(true)} 
+        onOpenCharacterTree={() => setIsCharTreeOpen(true)}
+        onOpenPublishModal={() => setIsPublishOpen(true)}
       />
 
-      {/* Vista Activa */}
+      {/* Vistas Principales */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {mode === 'editor' ? (
-          <TimelineEditor />
-        ) : (
-          <PlayerView />
-        )}
+        {mode === 'editor' && <TimelineEditor />}
+        {mode === 'player' && <PlayerView />}
+        {mode === 'community' && <CommunityFeed onPlayNovel={() => setMode('player')} />}
       </div>
 
-      {/* Modal de Árbol de Personajes (Modo Creador) */}
+      {/* Modales Flotantes */}
       <CharacterTreeModal 
         isOpen={isCharTreeOpen} 
         onClose={() => setIsCharTreeOpen(false)} 
         isReadOnly={false} 
+      />
+
+      <PublishModal 
+        isOpen={isPublishOpen} 
+        onClose={() => setIsPublishOpen(false)} 
       />
     </div>
   );
@@ -46,8 +54,10 @@ function MainStudio() {
 
 export default function App() {
   return (
-    <NovelProvider>
-      <MainStudio />
-    </NovelProvider>
+    <AuthProvider>
+      <NovelProvider>
+        <MainStudio />
+      </NovelProvider>
+    </AuthProvider>
   );
 }
