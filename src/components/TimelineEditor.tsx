@@ -9,31 +9,39 @@ import {
   CharacterAnimation, 
   StageCharacterInstance, 
   TimelineEvent, 
-  VariableChange 
+  VariableChange,
+  VariableOperation,
+  ScreenEffect
 } from '../types';
 import VariablesModal from './VariablesModal';
 
+// 7 Posiciones Horizontales para mayor granularidad
 const SLOTS_X: { slot: MagneticSlot; label: string; xPercent: number }[] = [
-  { slot: 'left', label: 'Izq', xPercent: 18 },
-  { slot: 'center-left', label: 'C-Izq', xPercent: 34 },
+  { slot: 'far-left' as any, label: 'Ext-Izq', xPercent: 12 },
+  { slot: 'left', label: 'Izq', xPercent: 25 },
+  { slot: 'center-left', label: 'C-Izq', xPercent: 38 },
   { slot: 'center', label: 'Centro', xPercent: 50 },
-  { slot: 'center-right', label: 'C-Der', xPercent: 66 },
-  { slot: 'right', label: 'Der', xPercent: 82 },
+  { slot: 'center-right', label: 'C-Der', xPercent: 62 },
+  { slot: 'right', label: 'Der', xPercent: 75 },
+  { slot: 'far-right' as any, label: 'Ext-Der', xPercent: 88 }
 ];
 
+// 7 Posiciones Verticales (rango ampliado hacia arriba y hacia abajo)
 const SLOTS_Y: { slot: VerticalSlot; label: string; bottomPercent: number; yDetectPercent: number }[] = [
-  { slot: 'sink', label: 'Muy Abajo', bottomPercent: -12, yDetectPercent: 92 },
-  { slot: 'floor', label: 'Abajo / Suelo', bottomPercent: 0, yDetectPercent: 80 },
-  { slot: 'ground', label: 'Normal', bottomPercent: 10, yDetectPercent: 66 },
-  { slot: 'elevated', label: 'Elevado', bottomPercent: 22, yDetectPercent: 48 },
-  { slot: 'floating', label: 'Flotando', bottomPercent: 36, yDetectPercent: 26 }
+  { slot: 'deep_sink' as any, label: 'Bajo Pantalla', bottomPercent: -25, yDetectPercent: 95 },
+  { slot: 'sink', label: 'Hundido', bottomPercent: -12, yDetectPercent: 85 },
+  { slot: 'floor', label: 'Suelo', bottomPercent: 0, yDetectPercent: 72 },
+  { slot: 'ground', label: 'Normal', bottomPercent: 12, yDetectPercent: 58 },
+  { slot: 'elevated', label: 'Elevado', bottomPercent: 24, yDetectPercent: 44 },
+  { slot: 'floating', label: 'Flotando', bottomPercent: 36, yDetectPercent: 30 },
+  { slot: 'sky' as any, label: 'Alto / Aire', bottomPercent: 48, yDetectPercent: 18 }
 ];
 
 const SCALES: { scale: CharacterScale; label: string; heightPercent: number }[] = [
-  { scale: 'small', label: 'Pequeño', heightPercent: 50 },
-  { scale: 'medium', label: 'Medio', heightPercent: 70 },
+  { scale: 'small', label: 'Pequeño', heightPercent: 48 },
+  { scale: 'medium', label: 'Medio', heightPercent: 68 },
   { scale: 'large', label: 'Grande', heightPercent: 88 },
-  { scale: 'closeup', label: 'Primer Plano', heightPercent: 105 }
+  { scale: 'closeup', label: 'Primer Plano', heightPercent: 108 }
 ];
 
 const ANIMATIONS: { anim: CharacterAnimation; label: string }[] = [
@@ -85,10 +93,13 @@ export default function TimelineEditor() {
 
   const [activeEditingCharId, setActiveEditingCharId] = useState<string | null>(null);
   const [draggingCharId, setDraggingCharId] = useState<string | null>(null);
+  const [activeHoverSlotX, setActiveHoverSlotX] = useState<string | null>(null);
+  const [activeHoverSlotY, setActiveHoverSlotY] = useState<string | null>(null);
   const [draggedTimelineIdx, setDraggedTimelineIdx] = useState<number | null>(null);
 
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const holdTimerRef = useRef<number | null>(null);
+  const hasMovedRef = useRef<boolean>(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const bgImportInputRef = useRef<HTMLInputElement>(null);
 
@@ -206,14 +217,20 @@ export default function TimelineEditor() {
     setShowBgGalleryModal(false);
   };
 
+  // Drag & Drop con soporte para Mantener Presionado
   const handleCharPointerDown = (e: React.PointerEvent, charId: string) => {
+    e.stopPropagation();
     setDraggingCharId(charId);
+    hasMovedRef.current = false;
     touchStartPos.current = { x: e.clientX, y: e.clientY };
 
+    if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
     holdTimerRef.current = window.setTimeout(() => {
-      setActiveEditingCharId(charId);
-      setDraggingCharId(null);
-    }, 450);
+      if (!hasMovedRef.current) {
+        setActiveEditingCharId(charId);
+        setDraggingCharId(null);
+      }
+    }, 400);
   };
 
   const handleCharPointerUp = () => {
@@ -222,6 +239,8 @@ export default function TimelineEditor() {
       holdTimerRef.current = null;
     }
     setDraggingCharId(null);
+    setActiveHoverSlotX(null);
+    setActiveHoverSlotY(null);
     touchStartPos.current = null;
   };
 
@@ -230,9 +249,12 @@ export default function TimelineEditor() {
 
     if (touchStartPos.current) {
       const dist = Math.hypot(e.clientX - touchStartPos.current.x, e.clientY - touchStartPos.current.y);
-      if (dist > 8 && holdTimerRef.current) {
-        clearTimeout(holdTimerRef.current);
-        holdTimerRef.current = null;
+      if (dist > 6) {
+        hasMovedRef.current = true;
+        if (holdTimerRef.current) {
+          clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = null;
+        }
       }
     }
 
@@ -259,6 +281,9 @@ export default function TimelineEditor() {
         closestSlotY = s;
       }
     });
+
+    setActiveHoverSlotX(closestSlotX.slot);
+    setActiveHoverSlotY(closestSlotY.slot);
 
     const updatedChars = currentEvent.charactersOnStage.map(c => {
       if (c.characterId === draggingCharId) {
@@ -321,8 +346,8 @@ export default function TimelineEditor() {
             border: '1px solid rgba(255,255,255,0.2)',
             color: '#38bdf8',
             borderRadius: 8,
-            padding: '6px 10px',
-            fontSize: 13,
+            padding: '6px 12px',
+            fontSize: 12,
             fontWeight: 700,
             cursor: 'pointer',
             boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
@@ -340,7 +365,7 @@ export default function TimelineEditor() {
         />
       )}
 
-      {/* Barra Lateral / Drawer Móvil */}
+      {/* Barra Lateral de Viñetas */}
       <div style={{
         position: isMobile ? 'absolute' : 'relative',
         top: 0,
@@ -356,7 +381,6 @@ export default function TimelineEditor() {
         transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.25s ease'
       }}>
-        {/* Encabezado Drawer Móvil */}
         {isMobile && (
           <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f1f2e' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>Guion Gráfico</span>
@@ -369,7 +393,6 @@ export default function TimelineEditor() {
           </div>
         )}
 
-        {/* Botones de Navegación y Variables */}
         <div style={{ padding: 8, borderBottom: '1px solid #1f1f2e', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button
             onClick={() => setShowBranchesModal(true)}
@@ -406,7 +429,6 @@ export default function TimelineEditor() {
           </button>
         </div>
 
-        {/* Acciones */}
         <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, borderBottom: '1px solid #1f1f2e' }}>
           <button
             onClick={handleAddDialogue}
@@ -441,7 +463,6 @@ export default function TimelineEditor() {
           </button>
         </div>
 
-        {/* Viñetas Verticales */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {activeTimeline.map((evt, idx) => {
             const isActive = idx === activeFrameIdx;
@@ -557,10 +578,66 @@ export default function TimelineEditor() {
             touchAction: 'none'
           }}
         >
-          {/* Barra Superior de Control de Escena y Fondo */}
+          {/* Guías Magnéticas Visibles durante el arrastre */}
+          {draggingCharId && (
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 15 }}>
+              {SLOTS_X.map(s => (
+                <div
+                  key={s.slot}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: `${s.xPercent}%`,
+                    width: 1,
+                    borderLeft: activeHoverSlotX === s.slot ? '2px dashed #38bdf8' : '1px dashed rgba(255,255,255,0.2)',
+                    backgroundColor: activeHoverSlotX === s.slot ? 'rgba(56,189,248,0.1)' : 'transparent'
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 4,
+                    fontSize: 8,
+                    color: activeHoverSlotX === s.slot ? '#38bdf8' : 'rgba(255,255,255,0.4)',
+                    fontWeight: 'bold'
+                  }}>
+                    {s.label}
+                  </span>
+                </div>
+              ))}
+
+              {SLOTS_Y.map(s => (
+                <div
+                  key={s.slot}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: `${s.bottomPercent}%`,
+                    height: 1,
+                    borderTop: activeHoverSlotY === s.slot ? '2px dashed #a855f7' : '1px dashed rgba(255,255,255,0.2)'
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    right: 8,
+                    bottom: 2,
+                    fontSize: 8,
+                    color: activeHoverSlotY === s.slot ? '#c084fc' : 'rgba(255,255,255,0.4)',
+                    fontWeight: 'bold'
+                  }}>
+                    {s.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Barra Superior de Control de Escena */}
           <div style={{ 
             position: 'absolute', 
-            top: isMobile ? 40 : 12, 
+            top: isMobile ? 42 : 12, 
             left: 12, 
             right: 12, 
             zIndex: 40, 
@@ -570,23 +647,21 @@ export default function TimelineEditor() {
             gap: 6, 
             flexWrap: 'wrap' 
           }}>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => setShowBgGalleryModal(true)}
-                style={{
-                  background: 'rgba(15, 15, 22, 0.85)',
-                  backdropFilter: 'blur(6px)',
-                  color: '#fff',
-                  border: '1px solid #444',
-                  borderRadius: 6,
-                  padding: '4px 10px',
-                  fontSize: 11,
-                  cursor: 'pointer'
-                }}
-              >
-                🖼️ Fondo de Escena
-              </button>
-            </div>
+            <button
+              onClick={() => setShowBgGalleryModal(true)}
+              style={{
+                background: 'rgba(15, 15, 22, 0.85)',
+                backdropFilter: 'blur(6px)',
+                color: '#fff',
+                border: '1px solid #444',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontSize: 11,
+                cursor: 'pointer'
+              }}
+            >
+              🖼️ Fondo de Escena
+            </button>
 
             {currentEvent?.type === 'dialogue' && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -623,22 +698,23 @@ export default function TimelineEditor() {
 
             const slotX = SLOTS_X.find(s => s.slot === inst.slot)?.xPercent ?? 50;
             const slotY = SLOTS_Y.find(s => s.slot === inst.verticalSlot)?.bottomPercent ?? 0;
-            const scaleHeight = SCALES.find(s => s.scale === inst.scale)?.heightPercent ?? 70;
+            const scaleHeight = SCALES.find(s => s.scale === inst.scale)?.heightPercent ?? 68;
+            const isDraggingThis = draggingCharId === inst.characterId;
 
             return (
               <div
                 key={inst.characterId}
                 onPointerDown={(e) => handleCharPointerDown(e, inst.characterId)}
-                onClick={() => setActiveEditingCharId(inst.characterId)}
                 style={{
                   position: 'absolute',
                   bottom: `${slotY}%`,
                   left: `${slotX}%`,
                   transform: 'translateX(-50%)',
                   height: `${scaleHeight}%`,
-                  cursor: 'grab',
-                  zIndex: activeEditingCharId === inst.characterId ? 25 : 10,
-                  filter: `brightness(${inst.brightness / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
+                  cursor: isDraggingThis ? 'grabbing' : 'grab',
+                  zIndex: isDraggingThis ? 25 : 10,
+                  filter: `brightness(${inst.brightness / 100}) ${isDraggingThis ? 'drop-shadow(0 0 16px #38bdf8)' : 'drop-shadow(0 8px 16px rgba(0,0,0,0.6))'}`,
+                  transition: isDraggingThis ? 'none' : 'bottom 0.2s ease, left 0.2s ease'
                 }}
               >
                 <img 
@@ -651,30 +727,32 @@ export default function TimelineEditor() {
             );
           })}
 
-          {/* Editor de Decisiones en Pantalla */}
+          {/* Editor de Decisiones con Consecuencias Completas */}
           {currentEvent?.type === 'choice' && (
             <div style={{
               position: 'absolute',
-              top: '18%',
+              top: '10%',
               left: '50%',
               transform: 'translateX(-50%)',
-              width: '85%',
-              maxWidth: 460,
+              width: '92%',
+              maxWidth: 560,
+              maxHeight: '80%',
+              overflowY: 'auto',
               background: 'rgba(15, 15, 24, 0.95)',
               backdropFilter: 'blur(8px)',
               borderRadius: 10,
-              padding: 14,
+              padding: 12,
               border: '1px solid #7e22ce',
               display: 'flex',
               flexDirection: 'column',
-              gap: 10,
+              gap: 8,
               zIndex: 30
             }}>
               <input 
                 type="text"
                 value={currentEvent.prompt}
                 onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, prompt: e.target.value })}
-                placeholder="Pregunta o dilema..."
+                placeholder="Pregunta o dilema central..."
                 style={{
                   width: '100%',
                   background: '#0a0a10',
@@ -688,7 +766,7 @@ export default function TimelineEditor() {
               />
 
               {currentEvent.options.map((opt, oIdx) => (
-                <div key={opt.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#1c1c28', padding: 8, borderRadius: 6 }}>
+                <div key={opt.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, background: '#1c1c28', padding: 8, borderRadius: 6, border: '1px solid #2e2e42' }}>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input 
                       type="text"
@@ -698,6 +776,7 @@ export default function TimelineEditor() {
                         copy[oIdx].text = e.target.value;
                         updateTimelineEvent(activeFrameIdx, { ...currentEvent, options: copy });
                       }}
+                      placeholder="Texto de la opción"
                       style={{
                         flex: 1,
                         background: '#0e0e16',
@@ -708,6 +787,24 @@ export default function TimelineEditor() {
                         fontSize: 12
                       }}
                     />
+                    
+                    {/* Selector de Vía / Rama de Destino */}
+                    <select
+                      value={opt.jumpToBranchId || ''}
+                      onChange={(e) => {
+                        const copy = [...currentEvent.options];
+                        copy[oIdx].jumpToBranchId = e.target.value || undefined;
+                        updateTimelineEvent(activeFrameIdx, { ...currentEvent, options: copy });
+                      }}
+                      style={{ background: '#0e0e16', color: '#c084fc', border: '1px solid #3b3b4f', borderRadius: 4, fontSize: 11, padding: '2px 4px' }}
+                    >
+                      <option value="">(Seguir Recto)</option>
+                      <option value="main">🌿 Vía Principal</option>
+                      {Object.values(branchesMap).map(b => (
+                        <option key={b.id} value={b.id}>🔀 {b.name}</option>
+                      ))}
+                    </select>
+
                     <button
                       onClick={() => handleAddVariableChangeToOption(opt.id)}
                       style={{ background: '#3b82f6', border: 'none', borderRadius: 4, color: '#fff', padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}
@@ -724,6 +821,73 @@ export default function TimelineEditor() {
                       ✕
                     </button>
                   </div>
+
+                  {/* Operaciones de Variables asignadas a la opción */}
+                  {opt.variableChanges && opt.variableChanges.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#12121c', padding: 6, borderRadius: 4 }}>
+                      {opt.variableChanges.map((ch, cIdx) => (
+                        <div key={cIdx} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <select
+                            value={ch.variableName}
+                            onChange={(e) => {
+                              const copy = [...opt.variableChanges!];
+                              copy[cIdx].variableName = e.target.value;
+                              const newOpts = currentEvent.options.map(o => o.id === opt.id ? { ...o, variableChanges: copy } : o);
+                              updateTimelineEvent(activeFrameIdx, { ...currentEvent, options: newOpts });
+                            }}
+                            style={{ flex: 1.5, background: '#0a0a0f', color: '#fff', border: '1px solid #333', fontSize: 10, borderRadius: 4, padding: 2 }}
+                          >
+                            {Object.keys(project.variables || {}).map(vn => (
+                              <option key={vn} value={vn}>{vn}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={ch.operation}
+                            onChange={(e) => {
+                              const copy = [...opt.variableChanges!];
+                              copy[cIdx].operation = e.target.value as VariableOperation;
+                              const newOpts = currentEvent.options.map(o => o.id === opt.id ? { ...o, variableChanges: copy } : o);
+                              updateTimelineEvent(activeFrameIdx, { ...currentEvent, options: newOpts });
+                            }}
+                            style={{ flex: 1, background: '#0a0a0f', color: '#38bdf8', border: '1px solid #333', fontSize: 10, borderRadius: 4, padding: 2 }}
+                          >
+                            <option value="set">Asignar (=)</option>
+                            <option value="add">Sumar (+)</option>
+                            <option value="subtract">Restar (-)</option>
+                            <option value="multiply">Multiplicar (×)</option>
+                            <option value="divide">Dividir (÷)</option>
+                            <option value="toggle">Alternar (Toggle)</option>
+                          </select>
+
+                          {ch.operation !== 'toggle' && (
+                            <input 
+                              type="text"
+                              value={String(ch.value)}
+                              onChange={(e) => {
+                                const copy = [...opt.variableChanges!];
+                                copy[cIdx].value = e.target.value;
+                                const newOpts = currentEvent.options.map(o => o.id === opt.id ? { ...o, variableChanges: copy } : o);
+                                updateTimelineEvent(activeFrameIdx, { ...currentEvent, options: newOpts });
+                              }}
+                              style={{ flex: 1, background: '#0a0a0f', color: '#fff', border: '1px solid #333', fontSize: 10, borderRadius: 4, padding: 2 }}
+                            />
+                          )}
+
+                          <button
+                            onClick={() => {
+                              const copy = opt.variableChanges!.filter((_, i) => i !== cIdx);
+                              const newOpts = currentEvent.options.map(o => o.id === opt.id ? { ...o, variableChanges: copy } : o);
+                              updateTimelineEvent(activeFrameIdx, { ...currentEvent, options: newOpts });
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -748,11 +912,11 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* Caja de Diálogo */}
+          {/* Caja de Diálogo con Vías y Efectos */}
           {currentEvent?.type === 'dialogue' && (
             <div style={{
               position: 'absolute',
-              bottom: 12,
+              bottom: 8,
               left: '50%',
               transform: 'translateX(-50%)',
               width: '94%',
@@ -760,11 +924,11 @@ export default function TimelineEditor() {
               backdropFilter: 'blur(8px)',
               border: `2px solid ${project.characters[currentEvent.speakerId]?.color || '#3b82f6'}`,
               borderRadius: 12,
-              padding: '10px 14px',
+              padding: '8px 12px',
               zIndex: 30,
               boxSizing: 'border-box'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, gap: 4 }}>
                 <select
                   value={currentEvent.speakerId}
                   onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, speakerId: e.target.value })}
@@ -773,8 +937,8 @@ export default function TimelineEditor() {
                     color: project.characters[currentEvent.speakerId]?.color || '#fff',
                     border: '1px solid #333',
                     borderRadius: 6,
-                    padding: '3px 8px',
-                    fontSize: 13,
+                    padding: '2px 8px',
+                    fontSize: 12,
                     fontWeight: 'bold'
                   }}
                 >
@@ -783,6 +947,31 @@ export default function TimelineEditor() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <select
+                    value={currentEvent.jumpToBranchId || ''}
+                    onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, jumpToBranchId: e.target.value || undefined })}
+                    style={{ background: '#1a1a26', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '2px 4px' }}
+                  >
+                    <option value="">➡️ Vía Directa</option>
+                    <option value="main">🌿 Tronco</option>
+                    {Object.values(branchesMap).map(b => (
+                      <option key={b.id} value={b.id}>🔀 {b.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={currentEvent.effect || 'none'}
+                    onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, effect: e.target.value as ScreenEffect })}
+                    style={{ background: '#1a1a26', color: '#aaa', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '2px 4px' }}
+                  >
+                    <option value="none">Sin Efecto</option>
+                    <option value="shake">💥 Temblor</option>
+                    <option value="flash">⚡ Flash</option>
+                    <option value="fade_black">🌑 Fundido</option>
+                  </select>
+                </div>
               </div>
 
               <textarea 
@@ -806,85 +995,170 @@ export default function TimelineEditor() {
         </div>
       </div>
 
-      {/* Modal de Propiedades del Personaje Seleccionado */}
+      {/* Menú Modal de Edición del Personaje (Presionar y Mantener) */}
       {editingCharInstance && editingCharDef && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          width: isMobile ? '100%' : 280,
-          height: '100%',
-          background: '#12121c',
-          borderLeft: '1px solid #28283d',
-          padding: 16,
-          boxSizing: 'border-box',
-          zIndex: 70,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          overflowY: 'auto'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #28283d', paddingBottom: 8 }}>
-            <span style={{ fontWeight: 'bold', color: editingCharDef.color }}>{editingCharDef.name}</span>
-            <button onClick={() => setActiveEditingCharId(null)} style={{ background: 'none', border: 'none', color: '#999', fontSize: 16, cursor: 'pointer' }}>✕</button>
-          </div>
+        <div 
+          onClick={() => setActiveEditingCharId(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(5, 5, 10, 0.8)',
+            backdropFilter: 'blur(6px)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 12
+          }}
+        >
+          <div 
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#13131c',
+              border: `2px solid ${editingCharDef.color}`,
+              borderRadius: 14,
+              padding: 14,
+              width: '100%',
+              maxWidth: 380,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.9)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 'bold', color: editingCharDef.color, fontSize: 14 }}>
+                🎭 {editingCharDef.name}
+              </span>
+              <button onClick={() => setActiveEditingCharId(null)} style={{ background: 'none', border: 'none', color: '#999', fontSize: 16, cursor: 'pointer' }}>✕</button>
+            </div>
 
-          <div>
-            <label style={{ fontSize: 11, color: '#aaa' }}>Expresión</label>
-            <select
-              value={editingCharInstance.expression}
-              onChange={(e) => {
-                const updated = currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage.map(c => 
-                  c.characterId === editingCharInstance.characterId ? { ...c, expression: e.target.value } : c
-                );
-                if (updated && currentEvent?.type === 'dialogue') updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updated });
-              }}
-              style={{ width: '100%', background: '#1c1c2b', color: '#fff', border: '1px solid #3a3a52', borderRadius: 6, padding: '4px 8px', marginTop: 4 }}
-            >
-              {Object.keys(editingCharDef.expressions).map(exp => (
-                <option key={exp} value={exp}>{exp}</option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 4 }}>Expresión:</label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {Object.entries(editingCharDef.expressions || {}).map(([exprKey, spriteUrl]) => (
+                  <div
+                    key={exprKey}
+                    onClick={() => {
+                      const updated = currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage.map(c => 
+                        c.characterId === editingCharInstance.characterId ? { ...c, expression: exprKey } : c
+                      );
+                      if (updated && currentEvent?.type === 'dialogue') updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updated });
+                    }}
+                    style={{
+                      width: 52,
+                      height: 60,
+                      background: editingCharInstance.expression === exprKey ? 'rgba(56, 189, 248, 0.2)' : 'rgba(0,0,0,0.3)',
+                      border: `2px solid ${editingCharInstance.expression === exprKey ? '#38bdf8' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: 6,
+                      padding: 2,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <img src={spriteUrl} alt={exprKey} style={{ width: '100%', height: 38, objectFit: 'contain' }} />
+                    <span style={{ fontSize: 8, color: '#fff', textTransform: 'capitalize' }}>{exprKey}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-          <div>
-            <label style={{ fontSize: 11, color: '#aaa' }}>Escala</label>
-            <select
-              value={editingCharInstance.scale}
-              onChange={(e) => {
-                const updated = currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage.map(c => 
-                  c.characterId === editingCharInstance.characterId ? { ...c, scale: e.target.value as CharacterScale } : c
-                );
-                if (updated && currentEvent?.type === 'dialogue') updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updated });
-              }}
-              style={{ width: '100%', background: '#1c1c2b', color: '#fff', border: '1px solid #3a3a52', borderRadius: 6, padding: '4px 8px', marginTop: 4 }}
-            >
-              {SCALES.map(s => (
-                <option key={s.scale} value={s.scale}>{s.label}</option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#aaa', marginBottom: 2 }}>
+                <span>💡 Brillo / Iluminación:</span>
+                <span>{editingCharInstance.brightness}%</span>
+              </div>
+              <input 
+                type="range"
+                min="0"
+                max="100"
+                step="10"
+                value={editingCharInstance.brightness}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const updated = currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage.map(c => 
+                    c.characterId === editingCharInstance.characterId ? { ...c, brightness: val } : c
+                  );
+                  if (updated && currentEvent?.type === 'dialogue') updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updated });
+                }}
+                style={{ width: '100%', accentColor: '#38bdf8' }}
+              />
+            </div>
 
-          <div>
-            <label style={{ fontSize: 11, color: '#aaa' }}>Animación</label>
-            <select
-              value={editingCharInstance.animation || 'none'}
-              onChange={(e) => {
-                const updated = currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage.map(c => 
-                  c.characterId === editingCharInstance.characterId ? { ...c, animation: e.target.value as CharacterAnimation } : c
-                );
-                if (updated && currentEvent?.type === 'dialogue') updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updated });
-              }}
-              style={{ width: '100%', background: '#1c1c2b', color: '#fff', border: '1px solid #3a3a52', borderRadius: 6, padding: '4px 8px', marginTop: 4 }}
+            <div>
+              <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Escala:</label>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {SCALES.map(s => (
+                  <button
+                    key={s.scale}
+                    onClick={() => {
+                      const updated = currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage.map(c => 
+                        c.characterId === editingCharInstance.characterId ? { ...c, scale: s.scale } : c
+                      );
+                      if (updated && currentEvent?.type === 'dialogue') updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updated });
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '4px',
+                      background: editingCharInstance.scale === s.scale ? '#38bdf8' : 'rgba(255,255,255,0.06)',
+                      color: editingCharInstance.scale === s.scale ? '#000' : '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Animación al entrar:</label>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {ANIMATIONS.map(a => (
+                  <button
+                    key={a.anim}
+                    onClick={() => {
+                      const updated = currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage.map(c => 
+                        c.characterId === editingCharInstance.characterId ? { ...c, animation: a.anim } : c
+                      );
+                      if (updated && currentEvent?.type === 'dialogue') updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updated });
+                    }}
+                    style={{
+                      flex: '1 1 45%',
+                      padding: '4px',
+                      background: (editingCharInstance.animation || 'none') === a.anim ? '#a855f7' : 'rgba(255,255,255,0.06)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveEditingCharId(null)}
+              style={{ padding: 6, background: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer', marginTop: 4 }}
             >
-              {ANIMATIONS.map(a => (
-                <option key={a.anim} value={a.anim}>{a.label}</option>
-              ))}
-            </select>
+              Listo
+            </button>
           </div>
         </div>
       )}
-      {/* Modal de Galería de Fondos */}
+
+      {/* Modal Galería de Fondos */}
       {showBgGalleryModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ width: '100%', maxWidth: 540, background: '#12121a', border: '1px solid #333', borderRadius: 12, padding: 16, maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -893,15 +1167,15 @@ export default function TimelineEditor() {
               <button onClick={() => setShowBgGalleryModal(false)} style={{ background: 'none', border: 'none', color: '#999', fontSize: 16, cursor: 'pointer' }}>✕</button>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+            <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
               {project.backgroundGallery?.map(bg => (
                 <div 
                   key={bg.id}
                   onClick={() => handleSelectBackground(bg.url)}
                   style={{ cursor: 'pointer', border: '1px solid #333', borderRadius: 8, overflow: 'hidden', background: '#0a0a0f' }}
                 >
-                  <img src={bg.url} alt={bg.name} style={{ width: '100%', height: 80, objectFit: 'cover' }} />
-                  <div style={{ padding: 6, fontSize: 11, color: '#ddd', textAlign: 'center' }}>{bg.name}</div>
+                  <img src={bg.url} alt={bg.name} style={{ width: '100%', height: 75, objectFit: 'cover' }} />
+                  <div style={{ padding: 4, fontSize: 10, color: '#ddd', textAlign: 'center' }}>{bg.name}</div>
                 </div>
               ))}
             </div>
@@ -917,7 +1191,7 @@ export default function TimelineEditor() {
         </div>
       )}
 
-      {/* Modal de Vías y Ramas */}
+      {/* Modal Vías y Ramas */}
       {showBranchesModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ width: '100%', maxWidth: 420, background: '#12121a', border: '1px solid #333', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
