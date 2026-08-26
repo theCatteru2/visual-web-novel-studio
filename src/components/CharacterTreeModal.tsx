@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
 import { Character, CharacterRelation } from '../types';
 
@@ -17,6 +17,10 @@ export default function CharacterTreeModal({ isOpen, onClose, isReadOnly = false
   const [relTargetId, setRelTargetId] = useState<string>('');
   const [relType, setRelType] = useState<string>('Amigo/a');
 
+  // Input para importar sprites
+  const spriteInputRef = useRef<HTMLInputElement>(null);
+  const [newExprName, setNewExprName] = useState<string>('');
+
   if (!isOpen) return null;
 
   const charactersList = Object.values(project.characters);
@@ -27,6 +31,52 @@ export default function CharacterTreeModal({ isOpen, onClose, isReadOnly = false
     addOrUpdateCharacter({
       ...selectedChar,
       [field]: value
+    });
+  };
+
+  // Subir / Importar imagen de expresión
+  const handleUploadSprite = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChar || isReadOnly) return;
+
+    const exprTag = (newExprName.trim() || file.name.replace(/\.[^/.]+$/, '')).toLowerCase();
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      if (typeof uploadEvent.target?.result === 'string') {
+        const spriteUrl = uploadEvent.target.result;
+        const updatedExpressions = {
+          ...(selectedChar.expressions || {}),
+          [exprTag]: spriteUrl
+        };
+
+        addOrUpdateCharacter({
+          ...selectedChar,
+          avatarUrl: selectedChar.avatarUrl || spriteUrl,
+          expressions: updatedExpressions
+        });
+
+        setNewExprName('');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // Borrar expresión
+  const handleDeleteExpression = (exprKey: string) => {
+    if (!selectedChar || isReadOnly) return;
+    if (Object.keys(selectedChar.expressions || {}).length <= 1) {
+      alert('El personaje debe tener al menos una expresión.');
+      return;
+    }
+
+    const copy = { ...selectedChar.expressions };
+    delete copy[exprKey];
+
+    addOrUpdateCharacter({
+      ...selectedChar,
+      expressions: copy
     });
   };
 
@@ -330,14 +380,82 @@ export default function CharacterTreeModal({ isOpen, onClose, isReadOnly = false
                   </div>
                 )}
 
-                {/* 2. EXPRESIONES */}
+                {/* 2. EXPRESIONES CON IMPORTACIÓN Y GESTIÓN */}
                 {activeTab === 'expressions' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    
+                    {!isReadOnly && (
+                      <div style={{ background: '#161622', padding: 10, borderRadius: 8, border: '1px solid #2d2d3f', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+                          type="text"
+                          placeholder="Nombre (ej. enojada, feliz, pensando)..."
+                          value={newExprName}
+                          onChange={(e) => setNewExprName(e.target.value)}
+                          style={{ flex: 1, minWidth: 160, background: '#0a0a10', color: '#fff', border: '1px solid #333', padding: '6px 10px', borderRadius: 6, fontSize: 11 }}
+                        />
+
+                        <button
+                          onClick={() => spriteInputRef.current?.click()}
+                          style={{ padding: '6px 14px', background: '#38bdf8', color: '#000', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 11, cursor: 'pointer' }}
+                        >
+                          + Subir Sprite
+                        </button>
+                        
+                        <input
+                          type="file"
+                          ref={spriteInputRef}
+                          onChange={handleUploadSprite}
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
                       {Object.entries(selectedChar.expressions || {}).map(([key, url]) => (
-                        <div key={key} style={{ background: '#0a0a10', border: '1px solid #2d2d3f', borderRadius: 8, padding: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                          <img src={url} alt={key} style={{ width: '100%', height: 75, objectFit: 'contain' }} />
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#38bdf8', textTransform: 'capitalize' }}>{key}</span>
+                        <div 
+                          key={key} 
+                          style={{ 
+                            background: '#0a0a10', 
+                            border: '1px solid #2d2d3f', 
+                            borderRadius: 8, 
+                            padding: 8, 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center', 
+                            gap: 6,
+                            position: 'relative'
+                          }}
+                        >
+                          <img src={url} alt={key} style={{ width: '100%', height: 90, objectFit: 'contain' }} />
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', textTransform: 'capitalize' }}>
+                            {key}
+                          </span>
+
+                          {!isReadOnly && Object.keys(selectedChar.expressions || {}).length > 1 && (
+                            <button
+                              onClick={() => handleDeleteExpression(key)}
+                              title="Eliminar expresión"
+                              style={{
+                                position: 'absolute',
+                                top: 4,
+                                right: 4,
+                                background: 'rgba(239, 68, 68, 0.8)',
+                                border: 'none',
+                                borderRadius: '50%',
+                                color: '#fff',
+                                width: 20,
+                                height: 20,
+                                fontSize: 10,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
