@@ -77,8 +77,8 @@ export default function PlayerView() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#050508',
-        padding: 10,
+        background: '#09090e',
+        padding: 12,
         boxSizing: 'border-box',
         overflow: 'hidden'
       }}
@@ -104,14 +104,15 @@ export default function PlayerView() {
         }
       `}</style>
 
+      {/* Contenedor con tamaño idéntico al Editor */}
       <div 
         onClick={handleScreenClick}
         style={{
           position: 'relative',
           width: '100%',
-          maxWidth: '100%',
-          aspectRatio: '16 / 9',
+          maxWidth: 'calc(100vw - 210px)',
           maxHeight: '100%',
+          aspectRatio: '16 / 9',
           backgroundImage: `url(${currentScene?.backgroundUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -213,7 +214,7 @@ export default function PlayerView() {
           </div>
         </div>
 
-        {/* Personajes en Escena con Brillos y Animaciones */}
+        {/* Personajes en Escena */}
         {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map(inst => {
           const charDef = project.characters[inst.characterId];
           if (!charDef) return null;
@@ -253,15 +254,15 @@ export default function PlayerView() {
           <div 
             style={{
               position: 'absolute',
-              top: '15%',
+              top: '12%',
               left: '50%',
               transform: 'translateX(-50%)',
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
-              width: '85%',
-              maxWidth: 440,
-              zIndex: 30
+              width: '88%',
+              maxWidth: 480,
+              zIndex: 35
             }}
           >
             <div style={{
@@ -306,29 +307,30 @@ export default function PlayerView() {
           <div 
             style={{
               position: 'absolute',
-              bottom: 16,
+              bottom: 8,
               left: '50%',
               transform: 'translateX(-50%)',
-              width: '92%',
+              width: '94%',
               background: 'rgba(10, 10, 15, 0.94)',
               backdropFilter: 'blur(8px)',
               border: `2px solid ${speakerChar?.color || '#3b82f6'}`,
               borderRadius: 12,
-              padding: '12px 18px',
+              padding: '8px 12px',
               color: '#fff',
               boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
-              zIndex: 20
+              zIndex: 30,
+              boxSizing: 'border-box'
             }}
           >
             <div style={{ 
               color: speakerChar?.color || '#fff', 
               fontWeight: 700, 
-              fontSize: 16, 
+              fontSize: 13, 
               marginBottom: 4 
             }}>
               {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
             </div>
-            <div style={{ fontSize: 14, lineHeight: 1.4, minHeight: 38, color: '#f3f4f6' }}>
+            <div style={{ fontSize: 13, lineHeight: 1.3, minHeight: 32, color: '#f3f4f6' }}>
               {currentEvent.text}
             </div>
           </div>
