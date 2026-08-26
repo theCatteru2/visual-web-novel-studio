@@ -9,11 +9,11 @@ export const mockProject: NovelProject = {
   updatedAt: Date.now(),
 
   backgroundGallery: [
-    { id: 'bg_aula', name: 'Aula de Clases', url: '/backgrounds/aula.png' },
-    { id: 'bg_pasillo', name: 'Pasillo Escolar', url: '/backgrounds/pasillo.png' },
-    { id: 'bg_parque', name: 'Parque Atardecer', url: '/backgrounds/parque_tarde.png' },
-    { id: 'bg_cuarto', name: 'Habitación', url: '/backgrounds/habitacion.png' },
-    { id: 'bg_noche', name: 'Ciudad Nocturna', url: '/backgrounds/calle_noche.png' }
+    { id: 'bg_aula', name: 'Aula de Clases', url: './backgrounds/aula.png' },
+    { id: 'bg_pasillo', name: 'Pasillo Escolar', url: './backgrounds/pasillo.png' },
+    { id: 'bg_parque', name: 'Parque Atardecer', url: './backgrounds/parque_tarde.png' },
+    { id: 'bg_cuarto', name: 'Habitación', url: './backgrounds/habitacion.png' },
+    { id: 'bg_noche', name: 'Ciudad Nocturna', url: './backgrounds/calle_noche.png' }
   ],
 
   variables: {
@@ -27,7 +27,7 @@ export const mockProject: NovelProject = {
       name: 'Mio',
       color: '#ec4899',
       bio: 'Estudiante amable y alegre.',
-      avatarUrl: '/sprites/mio_normal.png',
+      avatarUrl: './sprites/mio_normal.png',
       isPublic: true,
       hasAffinity: true,
       affinity: 0,
@@ -37,10 +37,10 @@ export const mockProject: NovelProject = {
       customStats: {},
       relations: [],
       expressions: {
-        normal: '/sprites/mio_normal.png',
-        feliz: '/sprites/mio_feliz.png',
-        sonrojada: '/sprites/mio_sonrojada.png',
-        seria: '/sprites/mio_seria.png'
+        normal: './sprites/mio_normal.png',
+        feliz: './sprites/mio_feliz.png',
+        sonrojada: './sprites/mio_sonrojada.png',
+        seria: './sprites/mio_seria.png'
       }
     },
     yuna: {
@@ -48,7 +48,7 @@ export const mockProject: NovelProject = {
       name: 'Yuna',
       color: '#a855f7',
       bio: 'Compañera reservada y reflexiva.',
-      avatarUrl: '/sprites/yuna_normal.png',
+      avatarUrl: './sprites/yuna_normal.png',
       isPublic: true,
       hasAffinity: true,
       affinity: 0,
@@ -58,10 +58,10 @@ export const mockProject: NovelProject = {
       customStats: {},
       relations: [],
       expressions: {
-        normal: '/sprites/yuna_normal.png',
-        feliz: '/sprites/yuna_feliz.png',
-        sonrojada: '/sprites/yuna_sonrojada.png',
-        seria: '/sprites/yuna_seria.png'
+        normal: './sprites/yuna_normal.png',
+        feliz: './sprites/yuna_feliz.png',
+        sonrojada: './sprites/yuna_sonrojada.png',
+        seria: './sprites/yuna_seria.png'
       }
     }
   },
@@ -74,7 +74,7 @@ export const mockProject: NovelProject = {
         {
           id: 'escena_1',
           title: 'Aula de Clases',
-          backgroundUrl: '/backgrounds/aula.jpg',
+          backgroundUrl: './backgrounds/aula.png',
           branches: {},
           timeline: [
             {
