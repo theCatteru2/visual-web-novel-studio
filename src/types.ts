@@ -84,6 +84,7 @@ export interface Chapter {
 export interface CharacterRelation {
   targetCharacterId: string;
   relationType: string;
+  isPublic?: boolean;
 }
 
 export interface Character {
