@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { 
   collection, 
   query, 
@@ -31,7 +31,10 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
   // Estados de edición del perfil propio
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editBio, setEditBio] = useState('');
+  const [editAvatarUrl, setEditAvatarUrl] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchNovelsAndFollows = async () => {
     setLoading(true);
@@ -66,6 +69,7 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
         setViewedProfile(data);
         setEditDisplayName(data.displayName || '');
         setEditBio(data.bio || '');
+        setEditAvatarUrl(data.avatarUrl || '');
 
         if (user) {
           setIsFollowingCurrent(followingIds.includes(userId));
@@ -96,24 +100,40 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
     }
   };
 
+  const handleAvatarFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (typeof event.target?.result === 'string') {
+        setEditAvatarUrl(event.target.result);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const handleSaveMyProfile = async () => {
     if (!user) return;
     setIsSavingProfile(true);
     try {
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        displayName: editDisplayName.trim(),
-        bio: editBio.trim()
-      });
+      const updatedData = {
+        displayName: editDisplayName.trim() || 'Creador',
+        bio: editBio.trim(),
+        avatarUrl: editAvatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`
+      };
+
+      await updateDoc(userRef, updatedData);
       setViewedProfile((prev: any) => ({
         ...prev,
-        displayName: editDisplayName.trim(),
-        bio: editBio.trim()
+        ...updatedData
       }));
-      alert('¡Perfil actualizado con éxito!');
+      alert('¡Perfil y foto actualizados con éxito!');
     } catch (err) {
       console.error(err);
-      alert('Error al guardar el perfil.');
+      alert('Error al guardar los cambios del perfil.');
     } finally {
       setIsSavingProfile(false);
     }
@@ -185,9 +205,9 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                 <img 
-                  src={viewedProfile.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${viewedProfile.uid}`} 
+                  src={(user && user.uid === viewedProfile.uid && editAvatarUrl) ? editAvatarUrl : (viewedProfile.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${viewedProfile.uid}`)} 
                   alt="" 
-                  style={{ width: 64, height: 64, borderRadius: '50%', border: '2px solid #38bdf8' }} 
+                  style={{ width: 68, height: 68, borderRadius: '50%', border: '2px solid #38bdf8', objectFit: 'cover' }} 
                 />
                 <div>
                   <h2 style={{ margin: 0, fontSize: 18, color: '#f3f4f6' }}>{viewedProfile.displayName || 'Creador'}</h2>
@@ -196,7 +216,7 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
                 </div>
               </div>
 
-              {/* Botón Seguir / Identificador de Cuenta */}
+              {/* Botón Seguir / Indicador de Cuenta */}
               <div>
                 {user && user.uid === viewedProfile.uid ? (
                   <div style={{ fontSize: 12, color: '#10b981', fontWeight: 700, background: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: 6, border: '1px solid #10b98144' }}>
@@ -215,8 +235,34 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
 
             {/* Formulario de edición rápida si es el dueño */}
             {user && user.uid === viewedProfile.uid && (
-              <div style={{ borderTop: '1px solid #222233', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <strong style={{ fontSize: 12, color: '#aaa' }}>✏️ Editar Perfil:</strong>
+              <div style={{ borderTop: '1px solid #222233', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <strong style={{ fontSize: 12, color: '#38bdf8' }}>✏️ Configurar Mi Perfil:</strong>
+                
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    accept="image/*" 
+                    onChange={handleAvatarFileUpload} 
+                    style={{ display: 'none' }} 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{ padding: '6px 12px', background: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    📷 Cambiar Foto de Perfil
+                  </button>
+                  <span style={{ fontSize: 11, color: '#666' }}>O ingresa una URL:</span>
+                  <input 
+                    type="text"
+                    value={editAvatarUrl}
+                    onChange={e => setEditAvatarUrl(e.target.value)}
+                    placeholder="https://ejemplo.com/mi-avatar.png"
+                    style={{ flex: 1, minWidth: 200, padding: 6, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 11 }}
+                  />
+                </div>
+
                 <div style={{ display: 'flex', gap: 8 }}>
                   <input 
                     type="text"
@@ -235,9 +281,9 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
                   <button 
                     onClick={handleSaveMyProfile}
                     disabled={isSavingProfile}
-                    style={{ padding: '6px 12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ padding: '6px 14px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                   >
-                    Guardar
+                    {isSavingProfile ? 'Guardando...' : 'Guardar'}
                   </button>
                 </div>
               </div>
