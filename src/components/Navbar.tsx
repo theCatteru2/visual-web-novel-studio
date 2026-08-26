@@ -21,13 +21,14 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree }: NavbarPro
       if (content) {
         const ok = importProjectJson(content);
         if (ok) {
-          alert('¡Proyecto cargado exitosamente!');
+          alert('¡Proyecto cargado con éxito!');
         } else {
           alert('Error al leer el archivo JSON.');
         }
       }
     };
     reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleStartPlay = () => {
@@ -37,74 +38,78 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree }: NavbarPro
 
   return (
     <div style={{
-      height: 52,
-      background: '#0e0e14',
-      borderBottom: '1px solid #272736',
+      height: 48,
+      background: '#09090e',
+      borderBottom: '1px solid #1f1f2e',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '0 16px',
+      padding: '0 10px',
       color: '#fff',
-      zIndex: 100
+      zIndex: 100,
+      boxSizing: 'border-box'
     }}>
-      {/* Título de la Novela */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 18 }}>📖</span>
-        <span style={{ fontWeight: 'bold', fontSize: 15, color: '#f3f4f6' }}>
-          {project.title || 'Visual Web Novel Studio'}
+      {/* Título */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+        <span style={{ fontSize: 16 }}>📖</span>
+        <span style={{ fontWeight: 800, fontSize: 13, color: '#f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
+          {project.title || 'Studio Maker'}
         </span>
       </div>
 
-      {/* Controles de Acción y Modos */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Controles de Acción Rápidos */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         
-        {/* Modal de Personajes */}
+        {/* Personajes */}
         <button
           onClick={onOpenCharacterTree}
+          title="Fichas y Vínculos de Personajes"
           style={{
-            padding: '6px 12px',
-            background: '#1f1f2e',
-            border: '1px solid #3d3d52',
+            padding: '6px 8px',
+            background: '#161622',
+            border: '1px solid #2d2d3f',
             color: '#ddd',
             borderRadius: 6,
             cursor: 'pointer',
-            fontSize: 13
+            fontSize: 11,
+            fontWeight: 600
           }}
         >
-          👥 Personajes y Lore
+          👥 <span style={{ display: window.innerWidth < 480 ? 'none' : 'inline' }}>Personajes</span>
         </button>
 
-        {/* Exportar e Importar JSON */}
+        {/* Exportar JSON */}
         <button
           onClick={exportProjectJson}
-          title="Guardar archivo .json en tu disco"
+          title="Guardar archivo .json"
           style={{
-            padding: '6px 10px',
-            background: '#1f1f2e',
-            border: '1px solid #3d3d52',
+            padding: '6px 8px',
+            background: '#161622',
+            border: '1px solid #2d2d3f',
             color: '#aaa',
             borderRadius: 6,
             cursor: 'pointer',
-            fontSize: 12
+            fontSize: 11
           }}
         >
-          💾 Exportar
+          💾
         </button>
 
+        {/* Importar JSON */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          title="Cargar archivo .json guardado"
+          title="Abrir archivo .json"
           style={{
-            padding: '6px 10px',
-            background: '#1f1f2e',
-            border: '1px solid #3d3d52',
+            padding: '6px 8px',
+            background: '#161622',
+            border: '1px solid #2d2d3f',
             color: '#aaa',
             borderRadius: 6,
             cursor: 'pointer',
-            fontSize: 12
+            fontSize: 11
           }}
         >
-          📂 Importar
+          📂
         </button>
 
         <input
@@ -115,24 +120,22 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree }: NavbarPro
           style={{ display: 'none' }}
         />
 
-        <div style={{ width: 1, height: 24, background: '#333', margin: '0 4px' }} />
-
-        {/* Conmutador Editor / Juego */}
+        {/* Botón de Play / Volver */}
         {mode === 'player' ? (
           <button
             onClick={() => setMode('editor')}
             style={{
-              padding: '6px 14px',
-              background: '#3b82f6',
+              padding: '6px 12px',
+              background: '#2563eb',
               color: '#fff',
               border: 'none',
               borderRadius: 6,
               cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: 13
+              fontWeight: 800,
+              fontSize: 12
             }}
           >
-            ✏️ Volver al Editor
+            ✏️ Editor
           </button>
         ) : (
           <button
@@ -140,18 +143,18 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree }: NavbarPro
             style={{
               padding: '6px 14px',
               background: '#10b981',
-              color: '#fff',
+              color: '#052e16',
               border: 'none',
               borderRadius: 6,
               cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: 13
+              fontWeight: 900,
+              fontSize: 12,
+              boxShadow: '0 0 12px rgba(16,185,129,0.4)'
             }}
           >
-            ▶️ Probar Novela
+            ▶ PROBAR
           </button>
         )}
-
       </div>
     </div>
   );
