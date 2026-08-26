@@ -2,14 +2,14 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Sustituye estos datos con los de tu consola de Firebase (Proyecto Web gratuito)
 const firebaseConfig = {
-  apiKey: "AIzaSyDummyKey_ReemplazarConLaTuya",
-  authDomain: "tu-proyecto.firebaseapp.com",
-  projectId: "tu-proyecto",
-  storageBucket: "tu-proyecto.appspot.com",
-  messagingSenderId: "1234567890",
-  appId: "1:1234567890:web:abcdef123456"
+  apiKey: "AIzaSyDxsrLy_I0n54NmdKwNZkZDLwlN55KPq60",
+  authDomain: "visual-novel-studio-26634.firebaseapp.com",
+  projectId: "visual-novel-studio-26634",
+  storageBucket: "visual-novel-studio-26634.firebasestorage.app",
+  messagingSenderId: "630969758710",
+  appId: "1:630969758710:web:91af1dbe31581cb1db0dd7",
+  measurementId: "G-7ELJLZRMM1"
 };
 
 const app = initializeApp(firebaseConfig);
