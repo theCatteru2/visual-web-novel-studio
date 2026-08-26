@@ -48,6 +48,7 @@ export interface DialogueEvent {
   effect?: ScreenEffect;
   jumpToBranchId?: string;
   jumpToEventIndex?: number;
+  jumpCondition?: BranchJumpCondition; 
   condition?: VariableCondition;
 }
 
