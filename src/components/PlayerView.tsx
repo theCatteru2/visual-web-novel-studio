@@ -4,26 +4,30 @@ import { MagneticSlot, VerticalSlot, CharacterScale, CharacterAnimation } from '
 import CharacterTreeModal from './CharacterTreeModal';
 
 const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
-  'left': '18%',
-  'center-left': '34%',
+  'far-left': '12%',
+  'left': '25%',
+  'center-left': '38%',
   'center': '50%',
-  'center-right': '66%',
-  'right': '82%'
+  'center-right': '62%',
+  'right': '75%',
+  'far-right': '88%'
 };
 
 const SLOT_POSITIONS_Y: Record<VerticalSlot, string> = {
+  'deep_sink': '-25%',
   'sink': '-12%',
   'floor': '0%',
-  'ground': '10%',
-  'elevated': '22%',
-  'floating': '36%'
+  'ground': '12%',
+  'elevated': '24%',
+  'floating': '36%',
+  'sky': '48%'
 };
 
 const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
-  'small': '50%',
-  'medium': '70%',
+  'small': '48%',
+  'medium': '68%',
   'large': '88%',
-  'closeup': '105%'
+  'closeup': '108%'
 };
 
 export default function PlayerView() {
@@ -69,12 +73,12 @@ export default function PlayerView() {
       style={{
         position: 'relative',
         width: '100vw',
-        height: 'calc(100vh - 52px)',
+        height: 'calc(100vh - 48px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         background: '#050508',
-        padding: 12,
+        padding: 10,
         boxSizing: 'border-box',
         overflow: 'hidden'
       }}
@@ -104,9 +108,10 @@ export default function PlayerView() {
         onClick={handleScreenClick}
         style={{
           position: 'relative',
-          height: 'calc(100vh - 84px)',
-          maxHeight: '100%',
+          width: '100%',
+          maxWidth: '100%',
           aspectRatio: '16 / 9',
+          maxHeight: '100%',
           backgroundImage: `url(${currentScene?.backgroundUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -114,7 +119,8 @@ export default function PlayerView() {
           borderRadius: 14,
           boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
           border: '1px solid rgba(255,255,255,0.1)',
-          userSelect: 'none'
+          userSelect: 'none',
+          cursor: currentEvent?.type === 'dialogue' ? 'pointer' : 'default'
         }}
       >
         {/* Barra Superior */}
@@ -130,7 +136,7 @@ export default function PlayerView() {
             zIndex: 40
           }}
         >
-          {/* Variables y Afinidad en Pantalla */}
+          {/* Afinidad y Estados del Mundo */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {Object.values(gameState.runtimeCharacters).map(char => (
               char.showAffinityBar && (
@@ -156,7 +162,6 @@ export default function PlayerView() {
               )
             ))}
 
-            {/* Mostrar variables clave en juego */}
             {Object.entries(gameState.runtimeVariables).map(([k, v]) => (
               <div 
                 key={k} 
@@ -208,14 +213,14 @@ export default function PlayerView() {
           </div>
         </div>
 
-        {/* Múltiples Personajes con Brillos y Animaciones */}
+        {/* Personajes en Escena con Brillos y Animaciones */}
         {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map(inst => {
           const charDef = project.characters[inst.characterId];
           if (!charDef) return null;
 
-          const slotX = SLOT_POSITIONS_X[inst.slot || 'center'];
-          const slotY = SLOT_POSITIONS_Y[inst.verticalSlot || 'floor'];
-          const scale = SCALE_PERCENTAGES[inst.scale || 'medium'];
+          const slotX = SLOT_POSITIONS_X[inst.slot || 'center'] || '50%';
+          const slotY = SLOT_POSITIONS_Y[inst.verticalSlot || 'floor'] || '0%';
+          const scale = SCALE_PERCENTAGES[inst.scale || 'medium'] || '68%';
 
           return (
             <div
