@@ -104,7 +104,6 @@ export default function PlayerView() {
         }
       `}</style>
 
-      {/* Contenedor con tamaño idéntico al Editor */}
       <div 
         onClick={handleScreenClick}
         style={{
@@ -128,17 +127,17 @@ export default function PlayerView() {
         <div 
           style={{
             position: 'absolute',
-            top: 12,
-            left: 12,
-            right: 12,
+            top: 14,
+            left: 16,
+            right: 16,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             zIndex: 40
           }}
         >
-          {/* Afinidad y Estados del Mundo */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {/* Afinidad y Estados */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {Object.values(gameState.runtimeCharacters).map(char => (
               char.showAffinityBar && (
                 <div 
@@ -146,10 +145,10 @@ export default function PlayerView() {
                   style={{
                     background: 'rgba(15, 15, 20, 0.85)',
                     backdropFilter: 'blur(6px)',
-                    padding: '4px 10px',
+                    padding: '6px 12px',
                     borderRadius: 20,
                     color: '#fff',
-                    fontSize: 11,
+                    fontSize: 12,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
@@ -169,10 +168,10 @@ export default function PlayerView() {
                 style={{
                   background: 'rgba(15, 15, 20, 0.85)',
                   backdropFilter: 'blur(6px)',
-                  padding: '4px 8px',
+                  padding: '5px 10px',
                   borderRadius: 20,
                   color: '#38bdf8',
-                  fontSize: 10,
+                  fontSize: 11,
                   border: '1px solid rgba(56,189,248,0.3)'
                 }}
               >
@@ -181,7 +180,7 @@ export default function PlayerView() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
               style={{
@@ -189,8 +188,8 @@ export default function PlayerView() {
                 color: '#fff',
                 border: '1px solid #444',
                 borderRadius: 6,
-                padding: '4px 10px',
-                fontSize: 11,
+                padding: '6px 12px',
+                fontSize: 12,
                 cursor: 'pointer'
               }}
             >
@@ -203,8 +202,8 @@ export default function PlayerView() {
                 color: '#fff',
                 border: 'none',
                 borderRadius: 6,
-                padding: '4px 10px',
-                fontSize: 11,
+                padding: '6px 12px',
+                fontSize: 12,
                 cursor: 'pointer',
                 fontWeight: 600
               }}
@@ -259,20 +258,21 @@ export default function PlayerView() {
               transform: 'translateX(-50%)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
-              width: '88%',
-              maxWidth: 480,
+              gap: 10,
+              width: '85%',
+              maxWidth: 540,
               zIndex: 35
             }}
           >
             <div style={{
               background: 'rgba(15, 15, 22, 0.95)',
               color: '#fff',
-              padding: '10px 14px',
-              borderRadius: 8,
+              padding: '14px 18px',
+              borderRadius: 10,
               textAlign: 'center',
-              fontSize: 14,
-              border: '1px solid #3b82f6'
+              fontSize: 16,
+              fontWeight: 800,
+              border: '1.5px solid #3b82f6'
             }}>
               {currentEvent.prompt}
             </div>
@@ -285,15 +285,16 @@ export default function PlayerView() {
                   selectChoiceOption(option.id);
                 }}
                 style={{
-                  padding: '10px 16px',
+                  padding: '14px 20px',
                   background: '#1f1f2e',
                   color: '#fff',
                   border: '1px solid #4f46e5',
-                  borderRadius: 8,
-                  fontSize: 13,
+                  borderRadius: 10,
+                  fontSize: 15,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   textAlign: 'center',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)'
                 }}
               >
                 {option.text}
@@ -302,35 +303,36 @@ export default function PlayerView() {
           </div>
         )}
 
-        {/* Diálogo */}
+        {/* Caja de Diálogo con Escala Completa */}
         {currentEvent?.type === 'dialogue' && (
           <div 
             style={{
               position: 'absolute',
-              bottom: 8,
+              bottom: 14,
               left: '50%',
               transform: 'translateX(-50%)',
               width: '94%',
               background: 'rgba(10, 10, 15, 0.94)',
-              backdropFilter: 'blur(8px)',
+              backdropFilter: 'blur(10px)',
               border: `2px solid ${speakerChar?.color || '#3b82f6'}`,
-              borderRadius: 12,
-              padding: '8px 12px',
+              borderRadius: 14,
+              padding: '14px 22px',
               color: '#fff',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.6)',
+              boxShadow: '0 10px 35px rgba(0,0,0,0.7)',
               zIndex: 30,
               boxSizing: 'border-box'
             }}
           >
             <div style={{ 
               color: speakerChar?.color || '#fff', 
-              fontWeight: 700, 
-              fontSize: 13, 
-              marginBottom: 4 
+              fontWeight: 800, 
+              fontSize: 18, 
+              marginBottom: 6,
+              textShadow: '0 2px 4px rgba(0,0,0,0.6)'
             }}>
               {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
             </div>
-            <div style={{ fontSize: 13, lineHeight: 1.3, minHeight: 32, color: '#f3f4f6' }}>
+            <div style={{ fontSize: 16, lineHeight: 1.5, minHeight: 48, color: '#f3f4f6' }}>
               {currentEvent.text}
             </div>
           </div>
@@ -342,27 +344,27 @@ export default function PlayerView() {
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'absolute',
-              top: 50,
-              right: 12,
-              width: 300,
-              maxHeight: '55%',
+              top: 55,
+              right: 16,
+              width: 340,
+              maxHeight: '65%',
               background: '#121218f2',
               border: '1px solid #333',
-              borderRadius: 8,
-              padding: 12,
+              borderRadius: 10,
+              padding: 14,
               overflowY: 'auto',
               zIndex: 50,
               color: '#ddd',
-              fontSize: 12,
+              fontSize: 13,
               display: 'flex',
               flexDirection: 'column',
-              gap: 6
+              gap: 8
             }}
           >
-            <div style={{ fontWeight: 700, borderBottom: '1px solid #333', paddingBottom: 4 }}>Registro de Diálogos</div>
+            <div style={{ fontWeight: 800, borderBottom: '1px solid #333', paddingBottom: 6 }}>Registro de Diálogos</div>
             {gameState.history.length === 0 && <span style={{ color: '#666' }}>No hay diálogos previos.</span>}
             {gameState.history.map((line, idx) => (
-              <div key={idx} style={{ lineHeight: 1.3 }}>{line}</div>
+              <div key={idx} style={{ lineHeight: 1.4 }}>{line}</div>
             ))}
           </div>
         )}
