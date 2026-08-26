@@ -3,8 +3,8 @@ import { useNovel } from '../context/NovelContext';
 import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
-  mode: 'editor' | 'player' | 'community';
-  setMode: (mode: 'editor' | 'player' | 'community') => void;
+  mode: 'editor' | 'player' | 'community' | 'profile';
+  setMode: (mode: 'editor' | 'player' | 'community' | 'profile') => void;
   onOpenCharacterTree: () => void;
   onOpenPublishModal: () => void;
 }
@@ -200,12 +200,31 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPubli
         {/* Cuenta de Usuario / Iniciar Sesión */}
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <img 
-              src={profile?.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`} 
-              alt="" 
-              title={profile?.displayName || 'Mi Perfil'}
-              style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid #38bdf8' }} 
-            />
+            <button
+              onClick={() => setMode('profile')}
+              title="Ver y editar mi perfil"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                background: mode === 'profile' ? '#372254' : '#161622',
+                border: `1px solid ${mode === 'profile' ? '#a855f7' : '#2d2d3f'}`,
+                padding: '3px 6px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                color: '#fff',
+                fontSize: 11
+              }}
+            >
+              <img 
+                src={profile?.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`} 
+                alt="" 
+                style={{ width: 18, height: 18, borderRadius: '50%' }} 
+              />
+              <span style={{ maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {profile?.displayName || 'Perfil'}
+              </span>
+            </button>
             <button 
               onClick={logout} 
               title="Cerrar sesión"
