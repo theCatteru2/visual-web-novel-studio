@@ -81,6 +81,11 @@ export interface Chapter {
   scenes: Scene[];
 }
 
+export interface CharacterRelation {
+  targetCharacterId: string;
+  relationType: string;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -94,7 +99,7 @@ export interface Character {
   maxAffinity: number;
   showAffinityBar: boolean;
   customStats: Record<string, number>;
-  relations: { targetCharacterId: string; relationType: string }[];
+  relations: CharacterRelation[];
   expressions: Record<string, string>;
 }
 
