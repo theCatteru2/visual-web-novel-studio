@@ -125,6 +125,8 @@ export interface NovelProject {
   isPublic: boolean;
   createdAt: number;
   updatedAt: number;
+  askPlayerName?: boolean;        // 👈 Opción de pedir nombre
+  defaultPlayerName?: string;     // 👈 Nombre por defecto
   backgroundGallery: { id: string; name: string; url: string }[];
   variables: Record<string, CustomVariable>;
   characters: Record<string, Character>;
@@ -136,6 +138,7 @@ export interface PlayerGameState {
   currentSceneId: string;
   currentBranchId: string;
   currentEventIndex: number;
+  playerName: string;            // 👈 Nombre ingresado en partida
   runtimeVariables: Record<string, boolean | number | string>;
   runtimeCharacters: Record<string, Character>;
   history: string[];
