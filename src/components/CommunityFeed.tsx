@@ -15,11 +15,11 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNovel } from '../context/NovelContext';
 
-export default function CommunityFeed({ onPlayNovel }: { onPlayNovel: () => void }) {
-  const { user, profile } = useAuth();
+export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: { onPlayNovel: () => void; defaultTab?: 'explore' | 'following' | 'my_profile' }) {
+  const { user } = useAuth();
   const { setProject, startPlaytest } = useNovel();
 
-  const [activeTab, setActiveTab] = useState<'explore' | 'following' | 'my_profile'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'following' | 'my_profile'>(defaultTab);
   const [novels, setNovels] = useState<any[]>([]);
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,7 +196,7 @@ export default function CommunityFeed({ onPlayNovel }: { onPlayNovel: () => void
                 </div>
               </div>
 
-              {/* Botón Seguir / Editar */}
+              {/* Botón Seguir / Identificador de Cuenta */}
               <div>
                 {user && user.uid === viewedProfile.uid ? (
                   <div style={{ fontSize: 12, color: '#10b981', fontWeight: 700, background: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: 6, border: '1px solid #10b98144' }}>
