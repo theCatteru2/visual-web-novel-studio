@@ -42,11 +42,13 @@ interface NovelContextType {
   deleteVariable: (varName: string) => void;
 
   gameState: PlayerGameState;
+  setPlayerName: (name: string) => void;
   startPlaytest: () => void;
   advancePlayerEvent: () => void;
   selectChoiceOption: (optionId: string) => void;
   jumpToScene: (sceneId: string) => void;
   jumpToBranch: (branchId: string) => void;
+  parseTextTokens: (text: string) => string;
 }
 
 const LOCAL_STORAGE_KEY = 'vwn_studio_project_v104_local_bg_and_sprites';
@@ -74,6 +76,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     currentSceneId: '',
     currentBranchId: 'main',
     currentEventIndex: 0,
+    playerName: project.defaultPlayerName || 'Protagonista',
     runtimeVariables: {},
     runtimeCharacters: {},
     history: []
@@ -82,6 +85,20 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(project));
   }, [project]);
+
+  // Reemplazar (player), {player}, [player] por el nombre real
+  const parseTextTokens = (text: string): string => {
+    if (!text) return '';
+    const currentName = gameState.playerName || project.defaultPlayerName || 'Protagonista';
+    return text
+      .replace(/\{player\}/gi, currentName)
+      .replace(/\[player\]/gi, currentName)
+      .replace(/\(player\)/gi, currentName);
+  };
+
+  const setPlayerName = (name: string) => {
+    setGameState(prev => ({ ...prev, playerName: name.trim() || 'Protagonista' }));
+  };
 
   const resetProjectToDefault = () => {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -384,6 +401,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       currentSceneId: project.chapters[0]?.scenes[0]?.id || '',
       currentBranchId: 'main',
       currentEventIndex: 0,
+      playerName: project.defaultPlayerName || 'Protagonista',
       runtimeVariables: initialVars,
       runtimeCharacters: JSON.parse(JSON.stringify(project.characters)),
       history: []
@@ -453,16 +471,18 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!currentEvent) return;
 
     if (currentEvent.type === 'dialogue') {
-      const charName = currentEvent.speakerId === 'narrator'
+      const rawSpeakerName = currentEvent.speakerId === 'narrator'
         ? 'Narrador'
         : (project.characters[currentEvent.speakerId]?.name || 'Personaje');
       
+      const parsedText = parseTextTokens(currentEvent.text);
+
       if (currentEvent.jumpToBranchId) {
         const shouldJump = checkCondition(currentEvent.jumpCondition, gameState.runtimeVariables);
         if (shouldJump) {
           setGameState(prev => ({
             ...prev,
-            history: [...prev.history, `${charName}: ${currentEvent.text}`],
+            history: [...prev.history, `${rawSpeakerName}: ${parsedText}`],
             currentBranchId: currentEvent.jumpToBranchId!,
             currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
             activeEffect: currentEvent.effect || 'none'
@@ -473,7 +493,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       setGameState(prev => ({
         ...prev,
-        history: [...prev.history, `${charName}: ${currentEvent.text}`],
+        history: [...prev.history, `${rawSpeakerName}: ${parsedText}`],
         activeEffect: currentEvent.effect || 'none'
       }));
     }
@@ -594,11 +614,13 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addOrUpdateVariable,
         deleteVariable,
         gameState,
+        setPlayerName,
         startPlaytest,
         advancePlayerEvent,
         selectChoiceOption,
         jumpToScene,
-        jumpToBranch
+        jumpToBranch,
+        parseTextTokens
       }}
     >
       {children}
