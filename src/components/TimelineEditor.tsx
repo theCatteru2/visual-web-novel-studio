@@ -9,8 +9,6 @@ import {
   CharacterAnimation, 
   StageCharacterInstance, 
   TimelineEvent, 
-  VariableChange,
-  VariableOperation,
   ScreenEffect
 } from '../types';
 import VariablesModal from './VariablesModal';
@@ -58,15 +56,14 @@ export default function TimelineEditor() {
     setProject,
     currentChapterId, 
     currentSceneId, 
-    currentBranchId,
-    setCurrentBranchId,
+    currentBranchId, 
+    setCurrentBranchId, 
     createBranch,
-    deleteBranch,
+    deleteBranch, 
     updateTimelineEvent, 
     addTimelineEvent, 
-    deleteTimelineEvent,
-    reorderTimelineEvents,
-    duplicateTimelineEventBase
+    deleteTimelineEvent, 
+    duplicateTimelineEventBase 
   } = useNovel();
 
   const currentChapter = project.chapters.find(c => c.id === currentChapterId) || project.chapters[0];
@@ -168,6 +165,50 @@ export default function TimelineEditor() {
     updateTimelineEvent(activeFrameIdx, { ...currentEvent, charactersOnStage: updatedList });
   };
 
+  const handleSelectBackground = (url: string) => {
+    setProject(prev => ({
+      ...prev,
+      chapters: prev.chapters.map(chap => ({
+        ...chap,
+        scenes: chap.scenes.map(sc => sc.id === currentSceneId ? { ...sc, backgroundUrl: url } : sc)
+      }))
+    }));
+    setShowBgGalleryModal(false);
+  };
+
+  const handleImportBgToGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      if (typeof uploadEvent.target?.result === 'string') {
+        const bgUrl = uploadEvent.target.result;
+        const newBgItem = {
+          id: `bg_${Date.now()}`,
+          name: file.name.replace(/\.[^/.]+$/, ''),
+          url: bgUrl
+        };
+        setProject(prev => ({
+          ...prev,
+          backgroundGallery: [...(prev.backgroundGallery || []), newBgItem]
+        }));
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleCreateNewBranch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBranchName.trim()) return;
+    const newId = createBranch(newBranchName.trim());
+    setNewBranchName('');
+    setCurrentBranchId(newId);
+    setActiveFrameIdx(0);
+    setShowBranchesModal(false);
+  };
+
   const handleCharPointerDown = (e: React.PointerEvent, charId: string) => {
     e.stopPropagation();
     setDraggingCharId(charId);
@@ -266,9 +307,7 @@ export default function TimelineEditor() {
       overflow: 'hidden'
     }}>
 
-      {/* ========================================================
-          1. DESKTOP SIDEBAR (Solo en pantalla grande)
-      ======================================================== */}
+      {/* 1. DESKTOP SIDEBAR */}
       {!isMobile && (
         <div style={{
           width: 190,
@@ -347,9 +386,7 @@ export default function TimelineEditor() {
         </div>
       )}
 
-      {/* ========================================================
-          2. CANVAS PRINCIPAL (16:9 Adaptable)
-      ======================================================== */}
+      {/* 2. CANVAS PRINCIPAL (16:9) */}
       <div style={{
         flex: isMobile ? '0 0 auto' : 1,
         width: '100%',
@@ -466,9 +503,7 @@ export default function TimelineEditor() {
         </div>
       </div>
 
-      {/* ========================================================
-          3. FILMSTRIP / TIRA DE VIÑETAS HORIZONTAL (MÓVIL)
-      ======================================================== */}
+      {/* 3. TIRA DE VIÑETAS HORIZONTAL (MÓVIL) */}
       {isMobile && (
         <div style={{
           background: '#0d0d14',
@@ -526,9 +561,7 @@ export default function TimelineEditor() {
         </div>
       )}
 
-      {/* ========================================================
-          4. BOTTOM SHEET MAKER (Área de Edición Contextual)
-      ======================================================== */}
+      {/* 4. PANEL INFERIOR CONTEXTUAL MAKER */}
       <div style={{
         flex: 1,
         background: '#101018',
@@ -536,7 +569,7 @@ export default function TimelineEditor() {
         flexDirection: 'column',
         overflow: 'hidden'
       }}>
-        {/* Pestañas Contextuales Maker */}
+        {/* Pestañas Contextuales */}
         <div style={{
           display: 'flex',
           background: '#09090e',
@@ -607,10 +640,10 @@ export default function TimelineEditor() {
           )}
         </div>
 
-        {/* Contenido de la pestaña activa */}
+        {/* Contenido Contextual */}
         <div style={{ flex: 1, padding: 12, overflowY: 'auto', boxSizing: 'border-box' }}>
           
-          {/* TAB 1: DIÁLOGO */}
+          {/* TAB: DIÁLOGO */}
           {mobileTab === 'dialogue' && currentEvent?.type === 'dialogue' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -684,10 +717,9 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* TAB 2: PERSONAJES Y POSICIONAMIENTO */}
+          {/* TAB: PERSONAJES */}
           {mobileTab === 'actors' && currentEvent?.type === 'dialogue' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Presencia en Escena */}
               <div>
                 <label style={{ fontSize: 11, color: '#aaa', fontWeight: 700, display: 'block', marginBottom: 6 }}>Actores en Escena:</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -715,7 +747,6 @@ export default function TimelineEditor() {
                 </div>
               </div>
 
-              {/* Selector de Expresiones del Personaje Seleccionado */}
               {editingCharInstance && editingCharDef && (
                 <div style={{ background: '#0a0a12', padding: 10, borderRadius: 8, border: '1px solid #222' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: editingCharDef.color, marginBottom: 8 }}>
@@ -751,7 +782,6 @@ export default function TimelineEditor() {
                     ))}
                   </div>
 
-                  {/* Controles de Escala y Animación */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
                     <div>
                       <label style={{ fontSize: 10, color: '#aaa', display: 'block', marginBottom: 2 }}>Tamaño:</label>
@@ -790,7 +820,7 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* TAB 3: ESCENA Y RAMAS */}
+          {/* TAB: ESCENA */}
           {mobileTab === 'scene' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button
@@ -814,7 +844,7 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* TAB 4: DECISIONES */}
+          {/* TAB: DECISIONES */}
           {mobileTab === 'choice_config' && currentEvent?.type === 'choice' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <input 
