@@ -10,7 +10,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPublishModal }: NavbarProps) {
-  const { project, exportProjectJson, importProjectJson, startPlaytest } = useNovel();
+  const { project, setProject, exportProjectJson, importProjectJson, startPlaytest } = useNovel();
   const { user, profile, loginWithGoogle, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,12 +52,26 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPubli
       zIndex: 100,
       boxSizing: 'border-box'
     }}>
-      {/* Título */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+      {/* Título Editable de la Novela */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, maxWidth: 220 }}>
         <span style={{ fontSize: 16 }}>📖</span>
-        <span style={{ fontWeight: 800, fontSize: 13, color: '#f3f4f6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 130 }}>
-          {project.title || 'Studio Maker'}
-        </span>
+        <input
+          type="text"
+          value={project.title}
+          onChange={(e) => setProject(prev => ({ ...prev, title: e.target.value }))}
+          placeholder="Título de la novela..."
+          style={{
+            background: 'transparent',
+            border: 'none',
+            borderBottom: '1px dashed rgba(255,255,255,0.2)',
+            color: '#f3f4f6',
+            fontWeight: 800,
+            fontSize: 13,
+            outline: 'none',
+            width: '100%',
+            padding: '2px 4px'
+          }}
+        />
       </div>
 
       {/* Controles de Acción Rápidos */}
