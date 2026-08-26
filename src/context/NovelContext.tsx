@@ -6,7 +6,8 @@ import {
   PlayerGameState,
   CustomVariable,
   Branch,
-  VariableChange
+  VariableChange,
+  BranchJumpCondition
 } from '../types';
 import { mockProject } from '../mockData';
 
@@ -413,6 +414,29 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }));
   };
 
+  const checkCondition = (
+    cond: BranchJumpCondition | undefined, 
+    runtimeVars: Record<string, any>
+  ): boolean => {
+    if (!cond || !cond.variableName) return true;
+    
+    const currentVal = runtimeVars[cond.variableName];
+    const targetVal = cond.value;
+
+    switch (cond.operator) {
+      case 'equals':
+        return String(currentVal) === String(targetVal);
+      case 'not_equals':
+        return String(currentVal) !== String(targetVal);
+      case 'greater':
+        return Number(currentVal) > Number(targetVal);
+      case 'less':
+        return Number(currentVal) < Number(targetVal);
+      default:
+        return true;
+    }
+  };
+
   const advancePlayerEvent = () => {
     let currentScene: any = null;
     for (const chap of project.chapters) {
@@ -434,14 +458,17 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         : (project.characters[currentEvent.speakerId]?.name || 'Personaje');
       
       if (currentEvent.jumpToBranchId) {
-        setGameState(prev => ({
-          ...prev,
-          history: [...prev.history, `${charName}: ${currentEvent.text}`],
-          currentBranchId: currentEvent.jumpToBranchId!,
-          currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
-          activeEffect: currentEvent.effect || 'none'
-        }));
-        return;
+        const shouldJump = checkCondition(currentEvent.jumpCondition, gameState.runtimeVariables);
+        if (shouldJump) {
+          setGameState(prev => ({
+            ...prev,
+            history: [...prev.history, `${charName}: ${currentEvent.text}`],
+            currentBranchId: currentEvent.jumpToBranchId!,
+            currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
+            activeEffect: currentEvent.effect || 'none'
+          }));
+          return;
+        }
       }
 
       setGameState(prev => ({
