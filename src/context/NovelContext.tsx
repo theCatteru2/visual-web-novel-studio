@@ -438,7 +438,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           ...prev,
           history: [...prev.history, `${charName}: ${currentEvent.text}`],
           currentBranchId: currentEvent.jumpToBranchId!,
-          currentEventIndex: 0,
+          currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
           activeEffect: currentEvent.effect || 'none'
         }));
         return;
@@ -530,7 +530,11 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (opt.jumpToSceneId) {
       jumpToScene(opt.jumpToSceneId);
     } else if (opt.jumpToBranchId) {
-      jumpToBranch(opt.jumpToBranchId);
+      setGameState(prev => ({
+        ...prev,
+        currentBranchId: opt.jumpToBranchId!,
+        currentEventIndex: opt.jumpToEventIndex ?? 0
+      }));
     } else {
       setGameState(prev => ({ ...prev, currentEventIndex: prev.currentEventIndex + 1 }));
     }
