@@ -16,7 +16,6 @@ export default function CharacterTreeModal({ isOpen, onClose, isReadOnly = false
   // Formulario para nueva relación
   const [relTargetId, setRelTargetId] = useState<string>('');
   const [relType, setRelType] = useState<string>('Amigo/a');
-  const [relIsPublic, setRelIsPublic] = useState<boolean>(true);
 
   if (!isOpen) return null;
 
@@ -38,7 +37,7 @@ export default function CharacterTreeModal({ isOpen, onClose, isReadOnly = false
     const newRel: CharacterRelation = {
       targetCharacterId: relTargetId,
       relationType: relType.trim() || 'Conocido',
-      isPublic: relIsPublic
+      isPublic: true
     };
 
     const existingRels = selectedChar.relations || [];
