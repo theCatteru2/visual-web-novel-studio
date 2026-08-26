@@ -9,7 +9,7 @@ import PublishModal from './components/PublishModal';
 import CommunityFeed from './components/CommunityFeed';
 
 function MainStudio() {
-  const [mode, setMode] = useState<'editor' | 'player' | 'community'>('editor');
+  const [mode, setMode] = useState<'editor' | 'player' | 'community' | 'profile'>('editor');
   const [isCharTreeOpen, setIsCharTreeOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
 
@@ -34,7 +34,11 @@ function MainStudio() {
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {mode === 'editor' && <TimelineEditor />}
         {mode === 'player' && <PlayerView />}
-        {mode === 'community' && <CommunityFeed onPlayNovel={() => setMode('player')} />}
+        {(mode === 'community' || mode === 'profile') && (
+          <CommunityFeed 
+            onPlayNovel={() => setMode('player')} 
+          />
+        )}
       </div>
 
       {/* Modales Flotantes */}
