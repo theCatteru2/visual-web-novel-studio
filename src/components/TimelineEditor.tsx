@@ -13,6 +13,7 @@ import {
   ScreenEffect
 } from '../types';
 import VariablesModal from './VariablesModal';
+import ConfirmModal from './ConfirmModal';
 
 const SLOTS_X: { slot: MagneticSlot; label: string; xPercent: number }[] = [
   { slot: 'far-left', label: 'Ext-Izq', xPercent: 12 },
@@ -75,6 +76,19 @@ export default function TimelineEditor() {
   const [showVariablesModal, setShowVariablesModal] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
 
+  // Estado del Modal de Confirmación
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
 
@@ -106,8 +120,6 @@ export default function TimelineEditor() {
     : (branchesMap[currentBranchId]?.timeline || []);
 
   const currentEvent = activeTimeline[activeFrameIdx] as TimelineEvent | undefined;
-
-  // Fondo del evento actual o por defecto el de la escena
   const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
   const handleAddDialogue = () => {
@@ -206,12 +218,36 @@ export default function TimelineEditor() {
     e.target.value = '';
   };
 
-  // Cambiar fondo únicamente para la viñeta activa
   const handleSelectBackground = (url: string) => {
     if (currentEvent) {
       updateTimelineEvent(activeFrameIdx, { ...currentEvent, backgroundUrl: url });
     }
     setShowBgGalleryModal(false);
+  };
+
+  // Pedir confirmación visual antes de eliminar viñeta
+  const promptDeleteEvent = (index: number) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Eliminar Viñeta',
+      message: `¿Seguro que deseas eliminar la viñeta #${index + 1}? Esta acción no se puede deshacer.`,
+      onConfirm: () => {
+        deleteTimelineEvent(index);
+        if (activeFrameIdx >= index && activeFrameIdx > 0) setActiveFrameIdx(prev => prev - 1);
+      }
+    });
+  };
+
+  // Pedir confirmación visual antes de eliminar rama
+  const promptDeleteBranch = (branchId: string, branchName: string) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Eliminar Rama Completa',
+      message: `¿Estás seguro de eliminar la rama "${branchName}"? Se perderán todas las viñetas que contiene.`,
+      onConfirm: () => {
+        deleteBranch(branchId);
+      }
+    });
   };
 
   const handleCharPointerDown = (e: React.PointerEvent, charId: string) => {
@@ -491,8 +527,7 @@ export default function TimelineEditor() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteTimelineEvent(idx);
-                        if (activeFrameIdx >= idx && activeFrameIdx > 0) setActiveFrameIdx(prev => prev - 1);
+                        promptDeleteEvent(idx);
                       }}
                       style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer' }}
                     >
@@ -940,7 +975,6 @@ export default function TimelineEditor() {
               zIndex: 30,
               boxSizing: 'border-box'
             }}>
-              {/* En PC se muestran los controles dentro de la cabecera */}
               {!isMobile ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 6, flexWrap: 'wrap' }}>
                   <select
@@ -1063,6 +1097,14 @@ export default function TimelineEditor() {
                       <option value="flash">⚡ Flash</option>
                       <option value="fade_black">🌑 Fundido</option>
                     </select>
+
+                    <button
+                      onClick={() => promptDeleteEvent(activeFrameIdx)}
+                      style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer' }}
+                      title="Eliminar viñeta"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -1092,7 +1134,7 @@ export default function TimelineEditor() {
           )}
         </div>
 
-        {/* Panel de Controles Inferior para Móviles (Aprovechando el espacio sobrante) */}
+        {/* Panel de Controles Inferior para Móviles */}
         {isMobile && currentEvent?.type === 'dialogue' && (
           <div style={{
             width: '100%',
@@ -1137,6 +1179,13 @@ export default function TimelineEditor() {
                 <option value="flash">⚡ Flash</option>
                 <option value="fade_black">🌑 Fundido</option>
               </select>
+
+              <button
+                onClick={() => promptDeleteEvent(activeFrameIdx)}
+                style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Borrar Viñeta
+              </button>
             </div>
 
             {/* Salto de Vía en Móvil */}
@@ -1449,7 +1498,7 @@ export default function TimelineEditor() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ width: '100%', maxWidth: 540, background: '#12121a', border: '1px solid #333', borderRadius: 12, padding: 16, maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#fff' }}>Galería de Fondos</span>
+              <span style={{ fontWeight: 'bold', color: '#fff' }}>Galería de Fondos (Viñeta #{activeFrameIdx + 1})</span>
               <button onClick={() => setShowBgGalleryModal(false)} style={{ background: 'none', border: 'none', color: '#999', fontSize: 16, cursor: 'pointer' }}>✕</button>
             </div>
 
@@ -1519,7 +1568,7 @@ export default function TimelineEditor() {
                   🔀 {br.name}
                 </button>
                 <button
-                  onClick={() => deleteBranch(br.id)}
+                  onClick={() => promptDeleteBranch(br.id, br.name)}
                   style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 6, padding: '0 10px', cursor: 'pointer' }}
                 >
                   ✕
@@ -1545,6 +1594,15 @@ export default function TimelineEditor() {
 
       {/* Modal de Variables */}
       <VariablesModal isOpen={showVariablesModal} onClose={() => setShowVariablesModal(false)} />
+
+      {/* Modal Visual de Confirmación de Borrado */}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
