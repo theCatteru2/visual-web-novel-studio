@@ -74,9 +74,9 @@ export default function TimelineEditor() {
   const [showBranchesModal, setShowBranchesModal] = useState(false);
   const [showBgGalleryModal, setShowBgGalleryModal] = useState(false);
   const [showVariablesModal, setShowVariablesModal] = useState(false);
+  const [showActorsDropdown, setShowActorsDropdown] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
 
-  // Estado del Modal de Confirmación
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     title: string;
@@ -225,7 +225,6 @@ export default function TimelineEditor() {
     setShowBgGalleryModal(false);
   };
 
-  // Pedir confirmación visual antes de eliminar viñeta
   const promptDeleteEvent = (index: number) => {
     setConfirmState({
       isOpen: true,
@@ -238,7 +237,6 @@ export default function TimelineEditor() {
     });
   };
 
-  // Pedir confirmación visual antes de eliminar rama
   const promptDeleteBranch = (branchId: string, branchName: string) => {
     setConfirmState({
       isOpen: true,
@@ -648,7 +646,7 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* Barra Superior de la Escena */}
+          {/* Barra Superior de la Escena (Con menú desplegable de actores) */}
           <div style={{ 
             position: 'absolute', 
             top: isMobile ? 6 : 12, 
@@ -658,8 +656,7 @@ export default function TimelineEditor() {
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center', 
-            gap: 4, 
-            flexWrap: 'wrap' 
+            gap: 4
           }}>
             <button
               onClick={() => setShowBgGalleryModal(true)}
@@ -674,33 +671,79 @@ export default function TimelineEditor() {
                 cursor: 'pointer'
               }}
             >
-              🖼️ {isMobile ? 'Fondo Viñeta' : 'Fondo de Viñeta'}
+              🖼️ {isMobile ? 'Fondo' : 'Fondo de Viñeta'}
             </button>
 
+            {/* Mini Menú Flotante para Actores */}
             {currentEvent?.type === 'dialogue' && (
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {Object.values(project.characters).map(char => {
-                  const onStage = currentEvent.charactersOnStage.some(c => c.characterId === char.id);
-                  return (
-                    <button
-                      key={char.id}
-                      onClick={() => handleToggleCharacterOnStage(char.id)}
-                      style={{
-                        background: onStage ? char.color : 'rgba(15, 15, 22, 0.8)',
-                        backdropFilter: 'blur(6px)',
-                        color: onStage ? '#000' : '#fff',
-                        border: `1px solid ${char.color}`,
-                        borderRadius: 20,
-                        padding: isMobile ? '2px 6px' : '3px 10px',
-                        fontSize: isMobile ? 9 : 11,
-                        cursor: 'pointer',
-                        fontWeight: onStage ? 'bold' : 'normal'
-                      }}
-                    >
-                      {onStage ? '✓ ' : '+ '}{char.name}
-                    </button>
-                  );
-                })}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowActorsDropdown(prev => !prev); }}
+                  style={{
+                    background: currentEvent.charactersOnStage.length > 0 ? '#2563eb' : 'rgba(15, 15, 22, 0.85)',
+                    backdropFilter: 'blur(6px)',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: 6,
+                    padding: isMobile ? '2px 6px' : '4px 10px',
+                    fontSize: isMobile ? 9 : 11,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  👥 Actores ({currentEvent.charactersOnStage.length}) ▾
+                </button>
+
+                {showActorsDropdown && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      top: '110%',
+                      right: 0,
+                      background: '#13131e',
+                      border: '1px solid #333',
+                      borderRadius: 8,
+                      padding: 6,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      minWidth: 140,
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.8)',
+                      zIndex: 50
+                    }}
+                  >
+                    {Object.values(project.characters).map(char => {
+                      const onStage = currentEvent.charactersOnStage.some(c => c.characterId === char.id);
+                      return (
+                        <button
+                          key={char.id}
+                          onClick={() => handleToggleCharacterOnStage(char.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '4px 8px',
+                            background: onStage ? `${char.color}22` : 'transparent',
+                            border: `1px solid ${onStage ? char.color : 'transparent'}`,
+                            borderRadius: 4,
+                            color: onStage ? '#fff' : '#aaa',
+                            fontSize: 11,
+                            fontWeight: onStage ? 800 : 500,
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: char.color }} />
+                          <span style={{ flex: 1 }}>{char.name}</span>
+                          <span>{onStage ? '✓' : '+'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1021,7 +1064,6 @@ export default function TimelineEditor() {
                       </select>
                     )}
 
-                    {/* Botón condicional en PC */}
                     {currentEvent.jumpToBranchId && (
                       !currentEvent.jumpCondition ? (
                         <button
@@ -1184,7 +1226,7 @@ export default function TimelineEditor() {
                 onClick={() => promptDeleteEvent(activeFrameIdx)}
                 style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
               >
-                Borrar Viñeta
+                Borrar
               </button>
             </div>
 
@@ -1197,7 +1239,7 @@ export default function TimelineEditor() {
                 style={{ flex: 1, background: '#161622', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '3px 4px' }}
               >
                 <option value="">➡️ Seguir Recto</option>
-                <option value="main">🌿 Vía Tronco</option>
+                <option value="main">🌿 Tronco</option>
                 {Object.values(branchesMap).map(b => (
                   <option key={b.id} value={b.id}>🔀 {b.name}</option>
                 ))}
