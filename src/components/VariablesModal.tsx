@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNovel } from '../context/NovelContext';
 import { CustomVariable } from '../types';
 
@@ -16,6 +16,7 @@ export default function VariablesModal({ isOpen, onClose }: VariablesModalProps)
   const [type, setType] = useState<'boolean' | 'number' | 'string'>('boolean');
   const [defaultValue, setDefaultValue] = useState<boolean | number | string>(false);
   const [description, setDescription] = useState('');
+  const [isVisibleInHUD, setIsVisibleInHUD] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -32,7 +33,8 @@ export default function VariablesModal({ isOpen, onClose }: VariablesModalProps)
       name: cleanName,
       type,
       defaultValue: parsedDefault,
-      description: description.trim()
+      description: description.trim(),
+      isVisibleInHUD
     };
 
     addOrUpdateVariable(newVar);
@@ -41,6 +43,14 @@ export default function VariablesModal({ isOpen, onClose }: VariablesModalProps)
     setDescription('');
     setDefaultValue(false);
     setType('boolean');
+    setIsVisibleInHUD(false);
+  };
+
+  const toggleVisibility = (v: CustomVariable) => {
+    addOrUpdateVariable({
+      ...v,
+      isVisibleInHUD: !v.isVisibleInHUD
+    });
   };
 
   return (
@@ -109,12 +119,33 @@ export default function VariablesModal({ isOpen, onClose }: VariablesModalProps)
                         Valor inicial: <code style={{ color: '#a7f3d0' }}>{String(v.defaultValue)}</code> {v.description && `• ${v.description}`}
                       </div>
                     </div>
-                    <button
-                      onClick={() => deleteVariable(v.name)}
-                      style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}
-                    >
-                      🗑️
-                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {/* Botón rápido para alternar si es visible en partida */}
+                      <button
+                        onClick={() => toggleVisibility(v)}
+                        title={v.isVisibleInHUD ? 'Visible en juego (clic para ocultar)' : 'Oculta en juego (clic para mostrar)'}
+                        style={{
+                          background: v.isVisibleInHUD ? 'rgba(56,189,248,0.15)' : 'rgba(255,255,255,0.05)',
+                          border: `1px solid ${v.isVisibleInHUD ? '#38bdf8' : '#444'}`,
+                          color: v.isVisibleInHUD ? '#38bdf8' : '#777',
+                          borderRadius: 6,
+                          padding: '3px 8px',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {v.isVisibleInHUD ? '👁️ Visible' : '🚫 Oculta'}
+                      </button>
+
+                      <button
+                        onClick={() => deleteVariable(v.name)}
+                        style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -193,6 +224,16 @@ export default function VariablesModal({ isOpen, onClose }: VariablesModalProps)
                 style={{ width: '100%', padding: '8px 12px', background: 'rgba(0,0,0,0.4)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }}
               />
             </div>
+
+            {/* Casilla para mostrar en juego */}
+            <label style={{ fontSize: 12, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', margin: '2px 0' }}>
+              <input
+                type="checkbox"
+                checked={isVisibleInHUD}
+                onChange={e => setIsVisibleInHUD(e.target.checked)}
+              />
+              👁️ Mostrar visible en pantalla durante la partida (HUD)
+            </label>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
               <button
