@@ -107,6 +107,9 @@ export default function TimelineEditor() {
 
   const currentEvent = activeTimeline[activeFrameIdx] as TimelineEvent | undefined;
 
+  // Fondo del evento actual o por defecto el de la escena
+  const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
+
   const handleAddDialogue = () => {
     const firstCharId = Object.keys(project.characters)[0] || 'mio';
     const newDialogue: DialogueEvent = {
@@ -203,14 +206,11 @@ export default function TimelineEditor() {
     e.target.value = '';
   };
 
+  // Cambiar fondo únicamente para la viñeta activa
   const handleSelectBackground = (url: string) => {
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => sc.id === currentSceneId ? { ...sc, backgroundUrl: url } : sc)
-      }))
-    }));
+    if (currentEvent) {
+      updateTimelineEvent(activeFrameIdx, { ...currentEvent, backgroundUrl: url });
+    }
     setShowBgGalleryModal(false);
   };
 
@@ -545,7 +545,7 @@ export default function TimelineEditor() {
             maxWidth: isMobile ? '100%' : 'calc(100vw - 210px)',
             maxHeight: isMobile ? 'auto' : '100%',
             aspectRatio: '16 / 9',
-            backgroundImage: `url(${currentScene?.backgroundUrl})`,
+            backgroundImage: `url(${effectiveBgUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             overflow: 'hidden',
@@ -639,7 +639,7 @@ export default function TimelineEditor() {
                 cursor: 'pointer'
               }}
             >
-              🖼️ {isMobile ? 'Fondo' : 'Fondo de Escena'}
+              🖼️ {isMobile ? 'Fondo Viñeta' : 'Fondo de Viñeta'}
             </button>
 
             {currentEvent?.type === 'dialogue' && (
@@ -710,12 +710,12 @@ export default function TimelineEditor() {
           {currentEvent?.type === 'choice' && (
             <div style={{
               position: 'absolute',
-              top: isMobile ? '8%' : '12%',
+              top: isMobile ? '6%' : '12%',
               left: '50%',
               transform: 'translateX(-50%)',
-              width: isMobile ? '92%' : '88%',
+              width: isMobile ? '94%' : '88%',
               maxWidth: 520,
-              maxHeight: '80%',
+              maxHeight: '85%',
               overflowY: 'auto',
               background: 'rgba(15, 15, 24, 0.95)',
               backdropFilter: 'blur(10px)',
@@ -924,7 +924,7 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* Caja de Diálogo sobre el Lienzo (Limpia y del mismo tamaño que Play) */}
+          {/* Caja de Diálogo sobre el Lienzo */}
           {currentEvent?.type === 'dialogue' && (
             <div style={{
               position: 'absolute',
@@ -936,7 +936,7 @@ export default function TimelineEditor() {
               backdropFilter: 'blur(10px)',
               border: `1.5px solid ${project.characters[currentEvent.speakerId]?.color || '#3b82f6'}`,
               borderRadius: isMobile ? 8 : 14,
-              padding: isMobile ? '6px 10px' : '12px 18px',
+              padding: isMobile ? '4px 8px' : '12px 18px',
               zIndex: 30,
               boxSizing: 'border-box'
             }}>
@@ -965,7 +965,7 @@ export default function TimelineEditor() {
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <select
                       value={currentEvent.jumpToBranchId || ''}
-                      onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, jumpToBranchId: e.target.value || undefined, jumpToEventIndex: 0 })}
+                      onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, jumpToBranchId: e.target.value || undefined, jumpToEventIndex: 0, jumpCondition: undefined })}
                       style={{ background: '#1a1a26', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 11, padding: '3px 6px' }}
                     >
                       <option value="">➡️ Vía Directa</option>
@@ -987,6 +987,72 @@ export default function TimelineEditor() {
                       </select>
                     )}
 
+                    {/* Botón condicional en PC */}
+                    {currentEvent.jumpToBranchId && (
+                      !currentEvent.jumpCondition ? (
+                        <button
+                          onClick={() => {
+                            const firstVar = Object.keys(project.variables || {})[0];
+                            if (!firstVar) {
+                              setShowVariablesModal(true);
+                              return;
+                            }
+                            updateTimelineEvent(activeFrameIdx, {
+                              ...currentEvent,
+                              jumpCondition: { variableName: firstVar, operator: 'equals', value: true }
+                            });
+                          }}
+                          style={{ background: 'rgba(56,189,248,0.15)', border: '1px dashed #38bdf8', color: '#38bdf8', borderRadius: 4, padding: '3px 6px', fontSize: 11, cursor: 'pointer' }}
+                        >
+                          + Si...
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 2, alignItems: 'center', background: '#0a0a10', padding: '2px 4px', borderRadius: 4, border: '1px solid #38bdf8' }}>
+                          <span style={{ fontSize: 9, color: '#38bdf8' }}>Si</span>
+                          <select
+                            value={currentEvent.jumpCondition.variableName}
+                            onChange={(e) => updateTimelineEvent(activeFrameIdx, {
+                              ...currentEvent,
+                              jumpCondition: { ...currentEvent.jumpCondition!, variableName: e.target.value }
+                            })}
+                            style={{ background: '#161622', color: '#fff', border: 'none', fontSize: 10 }}
+                          >
+                            {Object.keys(project.variables || {}).map(vn => (
+                              <option key={vn} value={vn}>{vn}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={currentEvent.jumpCondition.operator}
+                            onChange={(e) => updateTimelineEvent(activeFrameIdx, {
+                              ...currentEvent,
+                              jumpCondition: { ...currentEvent.jumpCondition!, operator: e.target.value as any }
+                            })}
+                            style={{ background: '#161622', color: '#a7f3d0', border: 'none', fontSize: 10 }}
+                          >
+                            <option value="equals">=</option>
+                            <option value="not_equals">≠</option>
+                            <option value="greater">&gt;</option>
+                            <option value="less">&lt;</option>
+                          </select>
+                          <input 
+                            type="text"
+                            value={String(currentEvent.jumpCondition.value)}
+                            onChange={(e) => updateTimelineEvent(activeFrameIdx, {
+                              ...currentEvent,
+                              jumpCondition: { ...currentEvent.jumpCondition!, value: e.target.value }
+                            })}
+                            style={{ width: 30, background: '#161622', color: '#fff', border: 'none', fontSize: 10, textAlign: 'center' }}
+                          />
+                          <button
+                            onClick={() => updateTimelineEvent(activeFrameIdx, { ...currentEvent, jumpCondition: undefined })}
+                            style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 10, cursor: 'pointer' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )
+                    )}
+
                     <select
                       value={currentEvent.effect || 'none'}
                       onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, effect: e.target.value as ScreenEffect })}
@@ -1000,7 +1066,7 @@ export default function TimelineEditor() {
                   </div>
                 </div>
               ) : (
-                <div style={{ color: project.characters[currentEvent.speakerId]?.color || '#fff', fontWeight: 800, fontSize: 12, marginBottom: 2 }}>
+                <div style={{ color: project.characters[currentEvent.speakerId]?.color || '#fff', fontWeight: 800, fontSize: 11, marginBottom: 1 }}>
                   {currentEvent.speakerId === 'narrator' ? 'Narrador' : (project.characters[currentEvent.speakerId]?.name || 'Personaje')}
                 </div>
               )}
@@ -1009,7 +1075,7 @@ export default function TimelineEditor() {
                 value={currentEvent.text}
                 onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, text: e.target.value })}
                 placeholder="Escribe el diálogo aquí..."
-                rows={2}
+                rows={isMobile ? 1 : 2}
                 style={{
                   width: '100%',
                   background: 'transparent',
@@ -1017,7 +1083,7 @@ export default function TimelineEditor() {
                   outline: 'none',
                   color: '#fff',
                   fontSize: isMobile ? 11 : 15,
-                  lineHeight: isMobile ? 1.3 : 1.4,
+                  lineHeight: isMobile ? 1.2 : 1.4,
                   resize: 'none',
                   boxSizing: 'border-box'
                 }}
@@ -1030,7 +1096,6 @@ export default function TimelineEditor() {
         {isMobile && currentEvent?.type === 'dialogue' && (
           <div style={{
             width: '100%',
-            maxWidth: '100%',
             background: '#12121c',
             border: '1px solid #28283a',
             borderRadius: 8,
@@ -1074,7 +1139,7 @@ export default function TimelineEditor() {
               </select>
             </div>
 
-            {/* Salto de Vía y Condición en Móvil */}
+            {/* Salto de Vía en Móvil */}
             <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', background: '#0a0a10', padding: 6, borderRadius: 6 }}>
               <span style={{ fontSize: 10, color: '#c084fc', fontWeight: 700 }}>Destino:</span>
               <select
