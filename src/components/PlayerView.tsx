@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNovel } from '../context/NovelContext';
 import { MagneticSlot, VerticalSlot, CharacterScale, CharacterAnimation } from '../types';
-import CharacterTreeModal from './CharacterTreeModal';
 
 const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
   'far-left': '12%',
@@ -32,7 +31,6 @@ const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
 
 export default function PlayerView() {
   const { project, gameState, advancePlayerEvent, selectChoiceOption, parseTextTokens, setPlayerName } = useNovel();
-  const [showCharModal, setShowCharModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -53,8 +51,6 @@ export default function PlayerView() {
     : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
 
   const currentEvent = timeline?.[gameState.currentEventIndex];
-
-  // Toma el fondo de la viñeta actual o el de la escena si no se definió uno individual
   const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
   const speakerChar = currentEvent?.type === 'dialogue' && currentEvent.speakerId !== 'narrator'
@@ -62,7 +58,7 @@ export default function PlayerView() {
     : null;
 
   const handleScreenClick = () => {
-    if (currentEvent?.type === 'choice' || showCharModal || showHistory || askingName) return;
+    if (currentEvent?.type === 'choice' || showHistory || askingName) return;
     advancePlayerEvent();
   };
 
@@ -145,94 +141,32 @@ export default function PlayerView() {
           cursor: currentEvent?.type === 'dialogue' ? 'pointer' : 'default'
         }}
       >
-        {/* Barra Superior */}
+        {/* Barra Superior Limpia */}
         <div 
           style={{
             position: 'absolute',
-            top: isMobile ? 6 : 14,
-            left: isMobile ? 8 : 16,
+            top: isMobile ? 8 : 14,
             right: isMobile ? 8 : 16,
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'center',
             zIndex: 40
           }}
         >
-          {/* Afinidad y Estados */}
-          <div style={{ display: 'flex', gap: isMobile ? 4 : 8, flexWrap: 'wrap', maxWidth: '70%' }}>
-            {Object.values(gameState.runtimeCharacters).map(char => (
-              char.showAffinityBar && (
-                <div 
-                  key={char.id} 
-                  style={{
-                    background: 'rgba(15, 15, 20, 0.85)',
-                    backdropFilter: 'blur(6px)',
-                    padding: isMobile ? '2px 6px' : '6px 12px',
-                    borderRadius: 20,
-                    color: '#fff',
-                    fontSize: isMobile ? 9 : 12,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    border: `1px solid ${char.color}55`
-                  }}
-                >
-                  <span>❤️</span>
-                  <strong>{char.name}:</strong>
-                  <span>{char.affinity}</span>
-                </div>
-              )
-            ))}
-
-            {Object.entries(gameState.runtimeVariables).map(([k, v]) => (
-              <div 
-                key={k} 
-                style={{
-                  background: 'rgba(15, 15, 20, 0.85)',
-                  backdropFilter: 'blur(6px)',
-                  padding: isMobile ? '2px 6px' : '5px 10px',
-                  borderRadius: 20,
-                  color: '#38bdf8',
-                  fontSize: isMobile ? 9 : 11,
-                  border: '1px solid rgba(56,189,248,0.3)'
-                }}
-              >
-                {k}: <strong style={{ color: '#fff' }}>{String(v)}</strong>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: isMobile ? 4 : 8 }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
-              style={{
-                background: 'rgba(20, 20, 28, 0.85)',
-                color: '#fff',
-                border: '1px solid #444',
-                borderRadius: 6,
-                padding: isMobile ? '3px 6px' : '6px 12px',
-                fontSize: isMobile ? 10 : 12,
-                cursor: 'pointer'
-              }}
-            >
-              📜 {isMobile ? '' : 'Historial'}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowCharModal(true); }}
-              style={{
-                background: 'rgba(37, 99, 235, 0.85)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                padding: isMobile ? '3px 6px' : '6px 12px',
-                fontSize: isMobile ? 10 : 12,
-                cursor: 'pointer',
-                fontWeight: 600
-              }}
-            >
-              👥 {isMobile ? '' : 'Personajes'}
-            </button>
-          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
+            style={{
+              background: 'rgba(20, 20, 28, 0.85)',
+              color: '#fff',
+              border: '1px solid #444',
+              borderRadius: 6,
+              padding: isMobile ? '3px 8px' : '6px 12px',
+              fontSize: isMobile ? 10 : 12,
+              cursor: 'pointer'
+            }}
+          >
+            📜 {isMobile ? '' : 'Historial'}
+          </button>
         </div>
 
         {/* Personajes en Escena */}
@@ -325,7 +259,7 @@ export default function PlayerView() {
           </div>
         )}
 
-        {/* Caja de Diálogo Adaptativa */}
+        {/* Caja de Diálogo */}
         {currentEvent?.type === 'dialogue' && (
           <div 
             style={{
@@ -466,12 +400,6 @@ export default function PlayerView() {
           </div>
         )}
       </div>
-
-      <CharacterTreeModal 
-        isOpen={showCharModal} 
-        onClose={() => setShowCharModal(false)} 
-        isReadOnly={true}
-      />
     </div>
   );
 }
