@@ -880,7 +880,7 @@ export default function TimelineEditor() {
                       style={{ flex: 1, background: '#161622', color: '#c084fc', border: '1px solid #444', borderRadius: 4, fontSize: 10, padding: 2 }}
                     >
                       <option value="">(Continuar Recto)</option>
-                      <option value="main">🌿 Tronco</option>
+                      <option value="main">🌿 Main</option>
                       {Object.values(branchesMap).map(b => (
                         <option key={b.id} value={b.id}>🔀 {b.name}</option>
                       ))}
@@ -1053,7 +1053,7 @@ export default function TimelineEditor() {
                       style={{ background: '#1a1a26', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '2px 4px' }}
                     >
                       <option value="">➡️ Vía Directa</option>
-                      <option value="main">🌿 Tronco</option>
+                      <option value="main">🌿 Main</option>
                       {Object.values(branchesMap).map(b => (
                         <option key={b.id} value={b.id}>🔀 {b.name}</option>
                       ))}
@@ -1246,7 +1246,7 @@ export default function TimelineEditor() {
                 style={{ flex: 1, background: '#161622', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '3px 4px' }}
               >
                 <option value="">➡️ Seguir Recto</option>
-                <option value="main">🌿 Vía Tronco</option>
+                <option value="main">🌿 Vía Main</option>
                 {Object.values(branchesMap).map(b => (
                   <option key={b.id} value={b.id}>🔀 {b.name}</option>
                 ))}
