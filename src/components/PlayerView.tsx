@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
 import { MagneticSlot, VerticalSlot, CharacterScale, CharacterAnimation } from '../types';
+import SaveLoadModal from './SaveLoadModal';
 
 const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
   'far-left': '12%',
@@ -32,7 +33,11 @@ const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
 export default function PlayerView() {
   const { project, gameState, advancePlayerEvent, selectChoiceOption, parseTextTokens, setPlayerName } = useNovel();
   const [showHistory, setShowHistory] = useState(false);
+  const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
+
+  const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const sfxAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -59,6 +64,47 @@ export default function PlayerView() {
   const currentEvent = timeline?.[gameState.currentEventIndex];
   const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
+  useEffect(() => {
+    const eventBgm = currentEvent?.bgmUrl;
+    if (eventBgm === 'stop') {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current.src = '';
+      }
+    } else if (eventBgm && eventBgm !== bgmAudioRef.current?.src) {
+      if (!bgmAudioRef.current) {
+        bgmAudioRef.current = new Audio(eventBgm);
+        bgmAudioRef.current.loop = true;
+      } else {
+        bgmAudioRef.current.src = eventBgm;
+      }
+      bgmAudioRef.current.play().catch(() => {});
+    }
+
+    if (currentEvent?.sfxUrl) {
+      if (!sfxAudioRef.current) {
+        sfxAudioRef.current = new Audio(currentEvent.sfxUrl);
+      } else {
+        sfxAudioRef.current.src = currentEvent.sfxUrl;
+      }
+      sfxAudioRef.current.currentTime = 0;
+      sfxAudioRef.current.play().catch(() => {});
+    }
+  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId]);
+
+  useEffect(() => {
+    return () => {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current = null;
+      }
+      if (sfxAudioRef.current) {
+        sfxAudioRef.current.pause();
+        sfxAudioRef.current = null;
+      }
+    };
+  }, []);
+
   const speakerChar = currentEvent?.type === 'dialogue' && currentEvent.speakerId !== 'narrator'
     ? gameState.runtimeCharacters[currentEvent.speakerId] || project.characters[currentEvent.speakerId]
     : null;
@@ -68,7 +114,7 @@ export default function PlayerView() {
   });
 
   const handleScreenClick = () => {
-    if (currentEvent?.type === 'choice' || showHistory || askingName) return;
+    if (currentEvent?.type === 'choice' || showHistory || showSaveLoad || askingName) return;
     advancePlayerEvent();
   };
 
@@ -100,13 +146,13 @@ export default function PlayerView() {
       style={{
         position: 'relative',
         width: '100vw',
-        height: 'calc(100dvh - 48px)',
+        height: 'calc(100vh - 48px)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: isPortrait ? 'flex-start' : 'center',
+        justifyContent: 'center',
         background: '#09090e',
-        padding: isPortrait ? 6 : 8,
+        padding: 16,
         boxSizing: 'border-box',
         overflow: 'hidden'
       }}
@@ -132,35 +178,36 @@ export default function PlayerView() {
         }
       `}</style>
 
-      {/* Contenedor del Lienzo con ajuste de altura/ancho para evitar cortes */}
+      {/* Contenedor del Lienzo unificado en tamaño grande para PC */}
       <div 
         onClick={handleScreenClick}
         style={{
           position: 'relative',
-          width: isPortrait ? '100%' : 'auto',
-          height: isPortrait ? 'auto' : '100%',
-          maxWidth: isPortrait ? '100%' : 'calc((100dvh - 64px) * 16 / 9)',
-          maxHeight: '100%',
+          width: isPortrait ? '100%' : 'calc((100vh - 80px) * 16 / 9)',
+          height: isPortrait ? 'auto' : 'calc(100vh - 80px)',
+          maxWidth: isPortrait ? '100%' : 'calc((100vh - 80px) * 16 / 9)',
+          maxHeight: 'calc(100vh - 80px)',
           aspectRatio: '16 / 9',
           backgroundImage: `url(${effectiveBgUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           overflow: 'hidden',
-          borderRadius: isPortrait ? 8 : 12,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 14,
+          boxShadow: '0 25px 70px rgba(0,0,0,0.85)',
+          border: '1px solid rgba(255,255,255,0.15)',
           userSelect: 'none',
           cursor: currentEvent?.type === 'dialogue' ? 'pointer' : 'default',
           flexShrink: 0
         }}
+      
       >
         {/* Barra Superior */}
         <div 
           style={{
             position: 'absolute',
-            top: 8,
-            left: 12,
-            right: 12,
+            top: 12,
+            left: 16,
+            right: 16,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -175,10 +222,10 @@ export default function PlayerView() {
                   style={{
                     background: 'rgba(15, 15, 20, 0.85)',
                     backdropFilter: 'blur(6px)',
-                    padding: '2px 6px',
+                    padding: '3px 10px',
                     borderRadius: 20,
                     color: '#38bdf8',
-                    fontSize: 10,
+                    fontSize: 11,
                     border: '1px solid rgba(56,189,248,0.3)'
                   }}
                 >
@@ -190,20 +237,38 @@ export default function PlayerView() {
             <div />
           )}
 
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
-            style={{
-              background: 'rgba(20, 20, 28, 0.85)',
-              color: '#fff',
-              border: '1px solid #444',
-              borderRadius: 6,
-              padding: '3px 8px',
-              fontSize: 10,
-              cursor: 'pointer'
-            }}
-          >
-            📜 Historial
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowSaveLoad(true); }}
+              style={{
+                background: 'rgba(16, 185, 129, 0.9)',
+                color: '#052e16',
+                border: 'none',
+                borderRadius: 6,
+                padding: '5px 12px',
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              💾 Guardar / Cargar
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
+              style={{
+                background: 'rgba(20, 20, 28, 0.9)',
+                color: '#fff',
+                border: '1px solid #555',
+                borderRadius: 6,
+                padding: '5px 12px',
+                fontSize: 11,
+                cursor: 'pointer'
+              }}
+            >
+              📜 Historial
+            </button>
+          </div>
         </div>
 
         {/* Personajes en Escena */}
@@ -246,24 +311,24 @@ export default function PlayerView() {
           <div 
             style={{
               position: 'absolute',
-              top: '8%',
+              top: '10%',
               left: '50%',
               transform: 'translateX(-50%)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
+              gap: 8,
               width: '90%',
-              maxWidth: 520,
+              maxWidth: 540,
               zIndex: 35
             }}
           >
             <div style={{
               background: 'rgba(15, 15, 22, 0.95)',
               color: '#fff',
-              padding: '8px 12px',
+              padding: '10px 16px',
               borderRadius: 8,
               textAlign: 'center',
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 800,
               border: '1.5px solid #3b82f6'
             }}>
@@ -278,12 +343,12 @@ export default function PlayerView() {
                   selectChoiceOption(option.id);
                 }}
                 style={{
-                  padding: '8px 14px',
+                  padding: '10px 18px',
                   background: '#1f1f2e',
                   color: '#fff',
                   border: '1px solid #4f46e5',
                   borderRadius: 8,
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
                   textAlign: 'center',
@@ -301,7 +366,7 @@ export default function PlayerView() {
           <div 
             style={{
               position: 'absolute',
-              bottom: 6,
+              bottom: 14,
               left: '50%',
               transform: 'translateX(-50%)',
               width: '95%',
@@ -309,7 +374,7 @@ export default function PlayerView() {
               backdropFilter: 'blur(10px)',
               border: `1.5px solid ${speakerChar?.color || '#3b82f6'}`,
               borderRadius: 10,
-              padding: '6px 12px',
+              padding: '10px 16px',
               color: '#fff',
               boxShadow: '0 10px 35px rgba(0,0,0,0.7)',
               zIndex: 30,
@@ -319,16 +384,16 @@ export default function PlayerView() {
             <div style={{ 
               color: speakerChar?.color || '#fff', 
               fontWeight: 800, 
-              fontSize: 13, 
-              marginBottom: 2,
+              fontSize: 14, 
+              marginBottom: 4,
               textShadow: '0 2px 4px rgba(0,0,0,0.6)'
             }}>
               {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
             </div>
             <div style={{ 
-              fontSize: 12, 
-              lineHeight: 1.35, 
-              minHeight: 24, 
+              fontSize: 13, 
+              lineHeight: 1.4, 
+              minHeight: 26, 
               color: '#f3f4f6' 
             }}>
               {parseTextTokens(currentEvent.text)}
@@ -356,18 +421,18 @@ export default function PlayerView() {
                 background: '#13131f',
                 border: '2px solid #38bdf8',
                 borderRadius: 12,
-                padding: 16,
+                padding: 20,
                 width: '100%',
-                maxWidth: 320,
+                maxWidth: 360,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 10,
+                gap: 12,
                 boxShadow: '0 20px 60px rgba(0,0,0,0.9)',
                 textAlign: 'center'
               }}
             >
-              <span style={{ fontSize: 20 }}>✍️</span>
-              <strong style={{ color: '#fff', fontSize: 14 }}>¿Cómo te llamas?</strong>
+              <span style={{ fontSize: 24 }}>✍️</span>
+              <strong style={{ color: '#fff', fontSize: 16 }}>¿Cómo te llamas?</strong>
               
               <input
                 type="text"
@@ -380,8 +445,8 @@ export default function PlayerView() {
                   border: '1px solid #333',
                   color: '#fff',
                   borderRadius: 6,
-                  padding: '6px 10px',
-                  fontSize: 13,
+                  padding: '8px 12px',
+                  fontSize: 14,
                   textAlign: 'center',
                   fontWeight: 700
                 }}
@@ -394,8 +459,8 @@ export default function PlayerView() {
                   color: '#000',
                   border: 'none',
                   borderRadius: 6,
-                  padding: '8px 12px',
-                  fontSize: 12,
+                  padding: '10px 14px',
+                  fontSize: 13,
                   fontWeight: 800,
                   cursor: 'pointer'
                 }}
@@ -412,31 +477,38 @@ export default function PlayerView() {
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'absolute',
-              top: 35,
-              right: 8,
-              width: 260,
+              top: 50,
+              right: 16,
+              width: 300,
               maxHeight: '65%',
               background: '#121218f2',
-              border: '1px solid #333',
+              border: '1px solid #444',
               borderRadius: 8,
-              padding: 10,
+              padding: 12,
               overflowY: 'auto',
               zIndex: 50,
               color: '#ddd',
-              fontSize: 11,
+              fontSize: 12,
               display: 'flex',
               flexDirection: 'column',
-              gap: 6
+              gap: 8
             }}
           >
-            <div style={{ fontWeight: 800, borderBottom: '1px solid #333', paddingBottom: 4 }}>Registro de Diálogos</div>
+            <div style={{ fontWeight: 800, borderBottom: '1px solid #444', paddingBottom: 6 }}>Registro de Diálogos</div>
             {gameState.history.length === 0 && <span style={{ color: '#666' }}>No hay diálogos previos.</span>}
             {gameState.history.map((line, idx) => (
-              <div key={idx} style={{ lineHeight: 1.3 }}>{line}</div>
+              <div key={idx} style={{ lineHeight: 1.4 }}>{line}</div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Modal de Guardar / Cargar Partida */}
+      <SaveLoadModal
+        isOpen={showSaveLoad}
+        mode="save"
+        onClose={() => setShowSaveLoad(false)}
+      />
     </div>
   );
 }

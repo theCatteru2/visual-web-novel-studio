@@ -51,6 +51,8 @@ export interface DialogueEvent {
   speakerId: string;
   text: string;
   backgroundUrl?: string;
+  bgmUrl?: string;        // URL/Base64 del BGM o 'stop' para apagar
+  sfxUrl?: string;        // Disparo único al entrar a la viñeta
   charactersOnStage: StageCharacterInstance[];
   effect?: ScreenEffect;
   jumpToBranchId?: string;
@@ -64,6 +66,8 @@ export interface ChoiceEvent {
   id: string;
   prompt: string;
   backgroundUrl?: string;
+  bgmUrl?: string;
+  sfxUrl?: string;
   options: ChoiceOption[];
   condition?: VariableCondition;
 }
@@ -80,6 +84,7 @@ export interface Scene {
   id: string;
   title: string;
   backgroundUrl: string;
+  bgmUrl?: string;
   timeline: TimelineEvent[];
   branches?: Record<string, Branch>;
 }
@@ -118,7 +123,14 @@ export interface CustomVariable {
   type: 'boolean' | 'number' | 'string';
   defaultValue: boolean | number | string;
   description?: string;
-  isVisibleInHUD?: boolean; // 👈 Interruptor para mostrar u ocultar en pantalla
+  isVisibleInHUD?: boolean;
+}
+
+export interface ProjectAudioItem {
+  id: string;
+  name: string;
+  url: string;
+  type: 'bgm' | 'sfx';
 }
 
 export interface NovelProject {
@@ -126,11 +138,13 @@ export interface NovelProject {
   title: string;
   description: string;
   isPublic: boolean;
+  allowCommunityEdit?: boolean;
   createdAt: number;
   updatedAt: number;
   askPlayerName?: boolean;
   defaultPlayerName?: string;
   backgroundGallery: { id: string; name: string; url: string }[];
+  audioGallery?: ProjectAudioItem[]; // 👈 Almacén de audios importados
   variables: Record<string, CustomVariable>;
   characters: Record<string, Character>;
   chapters: Chapter[];
@@ -146,4 +160,42 @@ export interface PlayerGameState {
   runtimeCharacters: Record<string, Character>;
   history: string[];
   activeEffect?: ScreenEffect;
+  currentBgmUrl?: string; // 👈 Música sonando actualmente
+}
+
+export interface SaveSlot {
+  id: string;
+  slotNumber: number;
+  timestamp: number;
+  previewBgUrl?: string;
+  previewText?: string;
+  sceneTitle?: string;
+  chapterTitle?: string;
+  state: PlayerGameState;
+}
+
+export interface LibraryNovelEntry {
+  id: string;
+  title: string;
+  description?: string;
+  coverUrl?: string;
+  authorName?: string;
+  authorId?: string;
+  lastPlayedAt?: number;
+  isOwner: boolean;
+  allowEdit: boolean;
+  project: NovelProject;
+  saveSlots: Record<string, SaveSlot>;
+}
+
+// 👈 Asset subido al bazar de la comunidad
+export interface CommunityAsset {
+  id: string;
+  title: string;
+  category: 'background' | 'character' | 'bgm' | 'sfx';
+  url: string;
+  authorName: string;
+  authorId: string;
+  createdAt: number;
+  tags?: string[];
 }

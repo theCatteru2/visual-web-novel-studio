@@ -6,8 +6,8 @@ import { useNovel } from '../context/NovelContext';
 
 export default function PublishModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { user, profile } = useAuth();
-  const { project } = useNovel();
-  const [allowDownload, setAllowDownload] = useState(false);
+  const { project, setProject } = useNovel();
+  const [allowDownload, setAllowDownload] = useState(Boolean(project.allowCommunityEdit));
   const [description, setDescription] = useState(project.description || '');
   const [publishing, setPublishing] = useState(false);
 
@@ -21,21 +21,32 @@ export default function PublishModal({ isOpen, onClose }: { isOpen: boolean; onC
     setPublishing(true);
 
     try {
+      const updatedProject = {
+        ...project,
+        description,
+        allowCommunityEdit: allowDownload,
+        isPublic: true,
+        updatedAt: Date.now()
+      };
+
+      setProject(updatedProject);
+
       await addDoc(collection(db, 'novels'), {
         title: project.title || 'Novela sin título',
         description,
         authorId: user.uid,
-        authorName: profile.displayName,
-        authorAvatar: profile.avatarUrl,
+        authorName: profile.displayName || 'Autor anónimo',
+        authorAvatar: profile.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`,
         allowDownload,
-        projectData: JSON.stringify(project),
+        allowCommunityEdit: allowDownload,
+        projectData: JSON.stringify(updatedProject),
         createdAt: Date.now()
       });
 
       alert('¡Novela publicada en la comunidad exitosamente!');
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error('Error al publicar en Firestore:', err);
       alert('Error al publicar la novela en Firestore.');
     } finally {
       setPublishing(false);
@@ -55,7 +66,8 @@ export default function PublishModal({ isOpen, onClose }: { isOpen: boolean; onC
           <textarea 
             rows={3} 
             value={description} 
-            onChange={e => setDescription(e.target.value)}
+            onChange={e => setDescription(e.target.value)} 
+            placeholder="¿De qué trata tu historia?..."
             style={{ width: '100%', background: '#0a0a0f', border: '1px solid #333', borderRadius: 6, color: '#fff', padding: 8, marginTop: 4, boxSizing: 'border-box' }}
           />
         </div>
@@ -67,12 +79,12 @@ export default function PublishModal({ isOpen, onClose }: { isOpen: boolean; onC
               checked={allowDownload} 
               onChange={e => setAllowDownload(e.target.checked)} 
             />
-            Permitir Descarga de Archivo (.JSON)
+            Permitir Edición y Descarga (.JSON)
           </label>
           <span style={{ fontSize: 11, color: allowDownload ? '#4ade80' : '#f87171' }}>
             {allowDownload 
-              ? '✓ Los lectores podrán descargar y editar este proyecto.' 
-              : '🔒 Bloqueado: Los lectores solo podrán jugarlo en línea.'}
+              ? '✓ Los lectores podrán editar, remixar y guardar este proyecto en su biblioteca.' 
+              : '🔒 Bloqueado: Los lectores solo podrán jugarlo en línea y guardar partidas.'}
           </span>
         </div>
 

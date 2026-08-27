@@ -7,7 +7,9 @@ import {
   CustomVariable,
   Branch,
   VariableChange,
-  BranchJumpCondition
+  BranchJumpCondition,
+  LibraryNovelEntry,
+  SaveSlot
 } from '../types';
 import { mockProject } from '../mockData';
 
@@ -43,15 +45,27 @@ interface NovelContextType {
 
   gameState: PlayerGameState;
   setPlayerName: (name: string) => void;
-  startPlaytest: () => void;
+  startPlaytest: (customInitialState?: PlayerGameState) => void;
   advancePlayerEvent: () => void;
   selectChoiceOption: (optionId: string) => void;
   jumpToScene: (sceneId: string) => void;
   jumpToBranch: (branchId: string) => void;
   parseTextTokens: (text: string) => string;
+
+  // 👈 Sistema de Biblioteca y Guardados
+  library: Record<string, LibraryNovelEntry>;
+  saveCurrentProjectToLibrary: () => void;
+  loadProjectFromLibrary: (novelId: string) => boolean;
+  deleteNovelFromLibrary: (novelId: string) => void;
+  saveGameToSlot: (slotNumber: number) => void;
+  loadGameFromSlot: (novelId: string, slotId: string) => boolean;
+  deleteSaveSlot: (novelId: string, slotId: string) => void;
+  importCommunityNovelToLibrary: (novel: NovelProject, authorName?: string, authorId?: string, allowEdit?: boolean) => string;
 }
 
 const LOCAL_STORAGE_KEY = 'vwn_studio_project_v104_local_bg_and_sprites';
+const LIBRARY_STORAGE_KEY = 'vwn_studio_library_v100';
+
 const NovelContext = createContext<NovelContextType | undefined>(undefined);
 
 export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -65,6 +79,18 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
     return mockProject;
+  });
+
+  const [library, setLibrary] = useState<Record<string, LibraryNovelEntry>>(() => {
+    const savedLib = localStorage.getItem(LIBRARY_STORAGE_KEY);
+    if (savedLib) {
+      try {
+        return JSON.parse(savedLib);
+      } catch (e) {
+        console.error('Error cargando biblioteca', e);
+      }
+    }
+    return {};
   });
 
   const [currentChapterId, setCurrentChapterId] = useState<string>(project.chapters[0]?.id || '');
@@ -86,7 +112,10 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(project));
   }, [project]);
 
-  // Reemplazar (player), {player}, [player] por el nombre real
+  useEffect(() => {
+    localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(library));
+  }, [library]);
+
   const parseTextTokens = (text: string): string => {
     if (!text) return '';
     const currentName = gameState.playerName || project.defaultPlayerName || 'Protagonista';
@@ -102,7 +131,6 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const resetProjectToDefault = () => {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
-    localStorage.clear();
     setProject(mockProject);
     setCurrentChapterId(mockProject.chapters[0]?.id || '');
     setCurrentSceneId(mockProject.chapters[0]?.scenes[0]?.id || '');
@@ -137,6 +165,161 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return false;
   };
 
+  // -------------------------------------------------------------
+  // BIBLIOTECA & SLOTS DE GUARDADO
+  // -------------------------------------------------------------
+  const saveCurrentProjectToLibrary = () => {
+    const novelId = project.id || `novel_${Date.now()}`;
+    const entry: LibraryNovelEntry = {
+      id: novelId,
+      title: project.title || 'Novela sin título',
+      description: project.description || '',
+      coverUrl: project.backgroundGallery?.[0]?.url || project.chapters[0]?.scenes[0]?.backgroundUrl,
+      lastPlayedAt: Date.now(),
+      isOwner: true,
+      allowEdit: true,
+      project: { ...project, id: novelId },
+      saveSlots: library[novelId]?.saveSlots || {}
+    };
+
+    setLibrary(prev => ({ ...prev, [novelId]: entry }));
+  };
+
+  const loadProjectFromLibrary = (novelId: string): boolean => {
+    const entry = library[novelId];
+    if (!entry) return false;
+    setProject(entry.project);
+    setCurrentChapterId(entry.project.chapters[0]?.id || '');
+    setCurrentSceneId(entry.project.chapters[0]?.scenes[0]?.id || '');
+    setCurrentBranchId('main');
+    return true;
+  };
+
+  const deleteNovelFromLibrary = (novelId: string) => {
+    setLibrary(prev => {
+      const copy = { ...prev };
+      delete copy[novelId];
+      return copy;
+    });
+  };
+
+  const importCommunityNovelToLibrary = (
+    novel: NovelProject, 
+    authorName = 'Comunidad', 
+    authorId = '', 
+    allowEdit = false
+  ): string => {
+    const novelId = novel.id || `comm_${Date.now()}`;
+    const entry: LibraryNovelEntry = {
+      id: novelId,
+      title: novel.title || 'Novela Comunitaria',
+      description: novel.description || '',
+      coverUrl: novel.backgroundGallery?.[0]?.url || novel.chapters[0]?.scenes[0]?.backgroundUrl,
+      authorName,
+      authorId,
+      lastPlayedAt: Date.now(),
+      isOwner: false,
+      allowEdit: Boolean(allowEdit || novel.allowCommunityEdit),
+      project: { ...novel, id: novelId },
+      saveSlots: library[novelId]?.saveSlots || {}
+    };
+
+    setLibrary(prev => ({ ...prev, [novelId]: entry }));
+    return novelId;
+  };
+
+  const saveGameToSlot = (slotNumber: number) => {
+    const novelId = project.id || 'current_project';
+    let currentScene: any = null;
+    let currentChapter: any = null;
+
+    for (const chap of project.chapters) {
+      const s = chap.scenes.find(sc => sc.id === gameState.currentSceneId);
+      if (s) {
+        currentChapter = chap;
+        currentScene = s;
+        break;
+      }
+    }
+
+    const timeline: TimelineEvent[] = gameState.currentBranchId === 'main'
+      ? currentScene?.timeline
+      : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
+
+    const curEvt = timeline?.[gameState.currentEventIndex];
+    const previewBg = curEvt?.backgroundUrl || currentScene?.backgroundUrl;
+    const previewTxt = curEvt?.type === 'dialogue' ? curEvt.text : 'Decisión en curso...';
+
+    const slotId = `slot_${slotNumber}`;
+    const newSlot: SaveSlot = {
+      id: slotId,
+      slotNumber,
+      timestamp: Date.now(),
+      previewBgUrl: previewBg,
+      previewText: previewTxt,
+      sceneTitle: currentScene?.title || 'Escena',
+      chapterTitle: currentChapter?.title || 'Capítulo',
+      state: JSON.parse(JSON.stringify(gameState))
+    };
+
+    setLibrary(prev => {
+      const existingEntry = prev[novelId] || {
+        id: novelId,
+        title: project.title || 'Novela sin título',
+        description: project.description || '',
+        coverUrl: previewBg,
+        lastPlayedAt: Date.now(),
+        isOwner: true,
+        allowEdit: true,
+        project,
+        saveSlots: {}
+      };
+
+      return {
+        ...prev,
+        [novelId]: {
+          ...existingEntry,
+          lastPlayedAt: Date.now(),
+          saveSlots: {
+            ...existingEntry.saveSlots,
+            [slotId]: newSlot
+          }
+        }
+      };
+    });
+  };
+
+  const loadGameFromSlot = (novelId: string, slotId: string): boolean => {
+    const entry = library[novelId];
+    if (!entry) return false;
+    const slot = entry.saveSlots[slotId];
+    if (!slot) return false;
+
+    setProject(entry.project);
+    startPlaytest(slot.state);
+    return true;
+  };
+
+  const deleteSaveSlot = (novelId: string, slotId: string) => {
+    setLibrary(prev => {
+      const entry = prev[novelId];
+      if (!entry) return prev;
+      const copySlots = { ...entry.saveSlots };
+      delete copySlots[slotId];
+
+      return {
+        ...prev,
+        [novelId]: {
+          ...entry,
+          saveSlots: copySlots
+        }
+      };
+    });
+  };
+
+  // -------------------------------------------------------------
+  // FUNCIONES DE EDICIÓN & HISTORIA
+  // -------------------------------------------------------------
   const addOrUpdateCharacter = (character: Character) => {
     setProject(prev => ({
       ...prev,
@@ -390,7 +573,12 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const startPlaytest = () => {
+  const startPlaytest = (customInitialState?: PlayerGameState) => {
+    if (customInitialState) {
+      setGameState(customInitialState);
+      return;
+    }
+
     const initialVars: Record<string, boolean | number | string> = {};
     Object.values(project.variables || {}).forEach(v => {
       initialVars[v.name] = v.defaultValue;
@@ -620,7 +808,15 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         selectChoiceOption,
         jumpToScene,
         jumpToBranch,
-        parseTextTokens
+        parseTextTokens,
+        library,
+        saveCurrentProjectToLibrary,
+        loadProjectFromLibrary,
+        deleteNovelFromLibrary,
+        saveGameToSlot,
+        loadGameFromSlot,
+        deleteSaveSlot,
+        importCommunityNovelToLibrary
       }}
     >
       {children}

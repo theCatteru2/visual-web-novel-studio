@@ -17,7 +17,7 @@ import { useNovel } from '../context/NovelContext';
 
 export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: { onPlayNovel: () => void; defaultTab?: 'explore' | 'following' | 'my_profile' }) {
   const { user } = useAuth();
-  const { setProject, startPlaytest } = useNovel();
+  const { setProject, startPlaytest, importCommunityNovelToLibrary } = useNovel();
 
   const [activeTab, setActiveTab] = useState<'explore' | 'following' | 'my_profile'>(defaultTab);
   const [novels, setNovels] = useState<any[]>([]);
@@ -140,14 +140,28 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
   };
 
   const handlePlay = (novel: any) => {
-    const parsed = JSON.parse(novel.projectData);
-    setProject(parsed);
-    startPlaytest();
-    onPlayNovel();
+    try {
+      const parsed = JSON.parse(novel.projectData);
+      
+      // Se registra y guarda automáticamente en el estante de la comunidad
+      importCommunityNovelToLibrary(
+        parsed,
+        novel.authorName || 'Autor de la Comunidad',
+        novel.authorId || '',
+        Boolean(novel.allowCommunityEdit || novel.allowDownload)
+      );
+
+      setProject(parsed);
+      startPlaytest();
+      onPlayNovel();
+    } catch (err) {
+      console.error('Error al parsear el proyecto:', err);
+      alert('Error al cargar la novela.');
+    }
   };
 
   const handleDownload = (novel: any) => {
-    if (!novel.allowDownload) return;
+    if (!novel.allowDownload && !novel.allowCommunityEdit) return;
     const blob = new Blob([novel.projectData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -249,7 +263,7 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    style={{ padding: '6px 12px', background: '#1e293b', color: '#38bdf8', border: '1px solid #334155', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+                    style={{ padding: '6px 12px', background: '#1e293b', color: '#38bdf8', border: '1px solid #3334155', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
                   >
                     📷 Cambiar Foto de Perfil
                   </button>
@@ -329,7 +343,7 @@ export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: {
                     ▶️ Jugar
                   </button>
 
-                  {novel.allowDownload ? (
+                  {(novel.allowDownload || novel.allowCommunityEdit) ? (
                     <button 
                       onClick={() => handleDownload(novel)}
                       style={{ padding: '8px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}

@@ -7,16 +7,17 @@ import PlayerView from './components/PlayerView';
 import CharacterTreeModal from './components/CharacterTreeModal';
 import PublishModal from './components/PublishModal';
 import CommunityFeed from './components/CommunityFeed';
+import HomeScreen from './components/HomeScreen';
 
 function MainStudio() {
-  const [mode, setMode] = useState<'editor' | 'player' | 'community' | 'profile'>('editor');
+  const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile'>('home');
   const [isCharTreeOpen, setIsCharTreeOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
 
   return (
     <div style={{
       width: '100vw',
-      height: '100vh',
+      height: '100dvh',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
@@ -32,6 +33,14 @@ function MainStudio() {
 
       {/* Vistas Principales */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {mode === 'home' && (
+          <HomeScreen
+            onOpenEditor={() => setMode('editor')}
+            onStartTest={() => setMode('player')}
+            onOpenCommunity={() => setMode('community')}
+            onOpenProfile={() => setMode('profile')}
+          />
+        )}
         {mode === 'editor' && <TimelineEditor />}
         {mode === 'player' && <PlayerView />}
         {(mode === 'community' || mode === 'profile') && (
