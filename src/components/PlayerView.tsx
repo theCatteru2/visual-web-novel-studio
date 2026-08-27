@@ -32,12 +32,22 @@ const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
 export default function PlayerView() {
   const { project, gameState, advancePlayerEvent, selectChoiceOption, parseTextTokens, setPlayerName } = useNovel();
   const [showHistory, setShowHistory] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMobilePortrait, setIsMobilePortrait] = useState(
+    window.innerWidth < 768 && window.innerHeight > window.innerWidth
+  );
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => {
+      const isPortrait = window.innerHeight > window.innerWidth;
+      const isSmall = window.innerWidth < 768 || (isPortrait && window.innerWidth < 900);
+      setIsMobilePortrait(isSmall && isPortrait);
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   const [askingName, setAskingName] = useState(Boolean(project.askPlayerName && gameState.currentEventIndex === 0 && gameState.history.length === 0));
@@ -57,7 +67,6 @@ export default function PlayerView() {
     ? gameState.runtimeCharacters[currentEvent.speakerId] || project.characters[currentEvent.speakerId]
     : null;
 
-  // Filtrar solo las variables marcadas como visibles en el editor
   const visibleVariables = Object.entries(gameState.runtimeVariables).filter(([key]) => {
     return project.variables?.[key]?.isVisibleInHUD === true;
   });
@@ -97,10 +106,11 @@ export default function PlayerView() {
         width: '100vw',
         height: 'calc(100vh - 48px)',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: isMobilePortrait ? 'flex-start' : 'center',
         background: '#09090e',
-        padding: isMobile ? 4 : 12,
+        padding: isMobilePortrait ? 6 : 12,
         boxSizing: 'border-box',
         overflow: 'hidden'
       }}
@@ -132,34 +142,34 @@ export default function PlayerView() {
         style={{
           position: 'relative',
           width: '100%',
-          maxWidth: isMobile ? '100%' : 'calc(100vw - 210px)',
+          maxWidth: isMobilePortrait ? '100%' : 'calc(100vw - 210px)',
           maxHeight: '100%',
           aspectRatio: '16 / 9',
           backgroundImage: `url(${effectiveBgUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           overflow: 'hidden',
-          borderRadius: isMobile ? 8 : 14,
+          borderRadius: isMobilePortrait ? 8 : 14,
           boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
           border: '1px solid rgba(255,255,255,0.1)',
           userSelect: 'none',
-          cursor: currentEvent?.type === 'dialogue' ? 'pointer' : 'default'
+          cursor: currentEvent?.type === 'dialogue' ? 'pointer' : 'default',
+          flexShrink: 0
         }}
       >
         {/* Barra Superior */}
         <div 
           style={{
             position: 'absolute',
-            top: isMobile ? 8 : 14,
-            left: isMobile ? 8 : 16,
-            right: isMobile ? 8 : 16,
+            top: isMobilePortrait ? 8 : 14,
+            left: isMobilePortrait ? 8 : 16,
+            right: isMobilePortrait ? 8 : 16,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             zIndex: 40
           }}
         >
-          {/* Variables Visibles en HUD configuradas por el creador */}
           {visibleVariables.length > 0 ? (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {visibleVariables.map(([k, v]) => (
@@ -168,10 +178,10 @@ export default function PlayerView() {
                   style={{
                     background: 'rgba(15, 15, 20, 0.85)',
                     backdropFilter: 'blur(6px)',
-                    padding: isMobile ? '2px 6px' : '4px 8px',
+                    padding: isMobilePortrait ? '2px 6px' : '4px 8px',
                     borderRadius: 20,
                     color: '#38bdf8',
-                    fontSize: isMobile ? 9 : 11,
+                    fontSize: isMobilePortrait ? 9 : 11,
                     border: '1px solid rgba(56,189,248,0.3)'
                   }}
                 >
@@ -190,12 +200,12 @@ export default function PlayerView() {
               color: '#fff',
               border: '1px solid #444',
               borderRadius: 6,
-              padding: isMobile ? '3px 8px' : '6px 12px',
-              fontSize: isMobile ? 10 : 12,
+              padding: isMobilePortrait ? '3px 8px' : '6px 12px',
+              fontSize: isMobilePortrait ? 10 : 12,
               cursor: 'pointer'
             }}
           >
-            📜 {isMobile ? '' : 'Historial'}
+            📜 {isMobilePortrait ? '' : 'Historial'}
           </button>
         </div>
 
@@ -239,13 +249,13 @@ export default function PlayerView() {
           <div 
             style={{
               position: 'absolute',
-              top: isMobile ? '8%' : '12%',
+              top: isMobilePortrait ? '8%' : '12%',
               left: '50%',
               transform: 'translateX(-50%)',
               display: 'flex',
               flexDirection: 'column',
-              gap: isMobile ? 6 : 10,
-              width: isMobile ? '92%' : '85%',
+              gap: isMobilePortrait ? 6 : 10,
+              width: isMobilePortrait ? '92%' : '85%',
               maxWidth: 540,
               zIndex: 35
             }}
@@ -253,10 +263,10 @@ export default function PlayerView() {
             <div style={{
               background: 'rgba(15, 15, 22, 0.95)',
               color: '#fff',
-              padding: isMobile ? '8px 12px' : '14px 18px',
+              padding: isMobilePortrait ? '8px 12px' : '14px 18px',
               borderRadius: 8,
               textAlign: 'center',
-              fontSize: isMobile ? 12 : 16,
+              fontSize: isMobilePortrait ? 12 : 16,
               fontWeight: 800,
               border: '1.5px solid #3b82f6'
             }}>
@@ -271,12 +281,12 @@ export default function PlayerView() {
                   selectChoiceOption(option.id);
                 }}
                 style={{
-                  padding: isMobile ? '8px 12px' : '14px 20px',
+                  padding: isMobilePortrait ? '8px 12px' : '14px 20px',
                   background: '#1f1f2e',
                   color: '#fff',
                   border: '1px solid #4f46e5',
                   borderRadius: 8,
-                  fontSize: isMobile ? 11 : 15,
+                  fontSize: isMobilePortrait ? 11 : 15,
                   fontWeight: 600,
                   cursor: 'pointer',
                   textAlign: 'center',
@@ -294,15 +304,15 @@ export default function PlayerView() {
           <div 
             style={{
               position: 'absolute',
-              bottom: isMobile ? 4 : 14,
+              bottom: isMobilePortrait ? 4 : 14,
               left: '50%',
               transform: 'translateX(-50%)',
               width: '94%',
               background: 'rgba(10, 10, 15, 0.94)',
               backdropFilter: 'blur(10px)',
               border: `2px solid ${speakerChar?.color || '#3b82f6'}`,
-              borderRadius: isMobile ? 8 : 14,
-              padding: isMobile ? '6px 10px' : '14px 22px',
+              borderRadius: isMobilePortrait ? 8 : 14,
+              padding: isMobilePortrait ? '6px 10px' : '14px 22px',
               color: '#fff',
               boxShadow: '0 10px 35px rgba(0,0,0,0.7)',
               zIndex: 30,
@@ -312,16 +322,16 @@ export default function PlayerView() {
             <div style={{ 
               color: speakerChar?.color || '#fff', 
               fontWeight: 800, 
-              fontSize: isMobile ? 12 : 18, 
-              marginBottom: isMobile ? 2 : 6,
+              fontSize: isMobilePortrait ? 12 : 18, 
+              marginBottom: isMobilePortrait ? 2 : 6,
               textShadow: '0 2px 4px rgba(0,0,0,0.6)'
             }}>
               {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
             </div>
             <div style={{ 
-              fontSize: isMobile ? 11 : 16, 
-              lineHeight: isMobile ? 1.3 : 1.5, 
-              minHeight: isMobile ? 22 : 48, 
+              fontSize: isMobilePortrait ? 11 : 16, 
+              lineHeight: isMobilePortrait ? 1.3 : 1.5, 
+              minHeight: isMobilePortrait ? 22 : 48, 
               color: '#f3f4f6' 
             }}>
               {parseTextTokens(currentEvent.text)}
@@ -349,7 +359,7 @@ export default function PlayerView() {
                 background: '#13131f',
                 border: '2px solid #38bdf8',
                 borderRadius: 12,
-                padding: isMobile ? 16 : 24,
+                padding: isMobilePortrait ? 16 : 24,
                 width: '100%',
                 maxWidth: 340,
                 display: 'flex',
@@ -360,7 +370,7 @@ export default function PlayerView() {
               }}
             >
               <span style={{ fontSize: 20 }}>✍️</span>
-              <strong style={{ color: '#fff', fontSize: isMobile ? 14 : 16 }}>¿Cómo te llamas?</strong>
+              <strong style={{ color: '#fff', fontSize: isMobilePortrait ? 14 : 16 }}>¿Cómo te llamas?</strong>
               
               <input
                 type="text"
@@ -373,8 +383,8 @@ export default function PlayerView() {
                   border: '1px solid #334155',
                   color: '#fff',
                   borderRadius: 6,
-                  padding: isMobile ? '6px 10px' : '10px 14px',
-                  fontSize: isMobile ? 13 : 15,
+                  padding: isMobilePortrait ? '6px 10px' : '10px 14px',
+                  fontSize: isMobilePortrait ? 13 : 15,
                   textAlign: 'center',
                   fontWeight: 700
                 }}
@@ -387,8 +397,8 @@ export default function PlayerView() {
                   color: '#000',
                   border: 'none',
                   borderRadius: 6,
-                  padding: isMobile ? '8px 12px' : '10px 16px',
-                  fontSize: isMobile ? 12 : 14,
+                  padding: isMobilePortrait ? '8px 12px' : '10px 16px',
+                  fontSize: isMobilePortrait ? 12 : 14,
                   fontWeight: 800,
                   cursor: 'pointer'
                 }}
@@ -405,9 +415,9 @@ export default function PlayerView() {
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'absolute',
-              top: isMobile ? 35 : 55,
-              right: isMobile ? 8 : 16,
-              width: isMobile ? 260 : 340,
+              top: isMobilePortrait ? 35 : 55,
+              right: isMobilePortrait ? 8 : 16,
+              width: isMobilePortrait ? 260 : 340,
               maxHeight: '65%',
               background: '#121218f2',
               border: '1px solid #333',
@@ -416,7 +426,7 @@ export default function PlayerView() {
               overflowY: 'auto',
               zIndex: 50,
               color: '#ddd',
-              fontSize: isMobile ? 11 : 13,
+              fontSize: isMobilePortrait ? 11 : 13,
               display: 'flex',
               flexDirection: 'column',
               gap: 6
