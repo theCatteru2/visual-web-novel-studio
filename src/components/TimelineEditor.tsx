@@ -342,28 +342,28 @@ export default function TimelineEditor() {
   return (
     <div style={{ position: 'relative', width: '100vw', height: 'calc(100vh - 48px)', display: 'flex', background: '#050508', overflow: 'hidden' }}>
       
-      {/* Botón flotante móvil */}
+      {/* Botón flotante móvil posicionado sin estorbar el lienzo */}
       {isMobile && !sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(true)}
           style={{
             position: 'absolute',
-            top: 8,
-            left: 8,
+            top: 6,
+            left: 6,
             zIndex: 60,
-            background: 'rgba(15, 23, 42, 0.9)',
+            background: 'rgba(15, 23, 42, 0.95)',
             backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.2)',
+            border: '1px solid rgba(56,189,248,0.4)',
             color: '#38bdf8',
             borderRadius: 6,
             padding: '4px 8px',
             fontSize: 11,
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+            boxShadow: '0 4px 12px rgba(0,0,0,0.6)'
           }}
         >
-          ☰ ({activeFrameIdx + 1}/{activeTimeline.length})
+          ☰ #{activeFrameIdx + 1}
         </button>
       )}
 
@@ -646,10 +646,10 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* Barra Superior de la Escena (Con menú desplegable de actores) */}
+          {/* Barra Superior de la Escena (Separada verticalmente en móvil) */}
           <div style={{ 
             position: 'absolute', 
-            top: isMobile ? 6 : 12, 
+            top: isMobile ? 38 : 12, 
             left: isMobile ? 8 : 12, 
             right: isMobile ? 8 : 12, 
             zIndex: 40, 
@@ -666,12 +666,12 @@ export default function TimelineEditor() {
                 color: '#fff',
                 border: '1px solid #444',
                 borderRadius: 6,
-                padding: isMobile ? '2px 6px' : '4px 10px',
-                fontSize: isMobile ? 9 : 11,
+                padding: isMobile ? '3px 8px' : '4px 10px',
+                fontSize: isMobile ? 10 : 11,
                 cursor: 'pointer'
               }}
             >
-              🖼️ {isMobile ? 'Fondo' : 'Fondo de Viñeta'}
+              🖼️ Fondo
             </button>
 
             {/* Mini Menú Flotante para Actores */}
@@ -685,8 +685,8 @@ export default function TimelineEditor() {
                     color: '#fff',
                     border: '1px solid rgba(255,255,255,0.2)',
                     borderRadius: 6,
-                    padding: isMobile ? '2px 6px' : '4px 10px',
-                    fontSize: isMobile ? 9 : 11,
+                    padding: isMobile ? '3px 8px' : '4px 10px',
+                    fontSize: isMobile ? 10 : 11,
                     fontWeight: 700,
                     cursor: 'pointer'
                   }}
@@ -873,7 +873,7 @@ export default function TimelineEditor() {
                       style={{ flex: 1, background: '#161622', color: '#c084fc', border: '1px solid #444', borderRadius: 4, fontSize: 10, padding: 2 }}
                     >
                       <option value="">(Continuar Recto)</option>
-                      <option value="main">🌿 Main</option>
+                      <option value="main">🌿 Tronco</option>
                       {Object.values(branchesMap).map(b => (
                         <option key={b.id} value={b.id}>🔀 {b.name}</option>
                       ))}
@@ -1046,7 +1046,7 @@ export default function TimelineEditor() {
                       style={{ background: '#1a1a26', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 11, padding: '3px 6px' }}
                     >
                       <option value="">➡️ Vía Directa</option>
-                      <option value="main">🌿 Main</option>
+                      <option value="main">🌿 Tronco</option>
                       {Object.values(branchesMap).map(b => (
                         <option key={b.id} value={b.id}>🔀 {b.name}</option>
                       ))}
@@ -1064,6 +1064,7 @@ export default function TimelineEditor() {
                       </select>
                     )}
 
+                    {/* Botón condicional en PC */}
                     {currentEvent.jumpToBranchId && (
                       !currentEvent.jumpCondition ? (
                         <button
@@ -1239,7 +1240,7 @@ export default function TimelineEditor() {
                 style={{ flex: 1, background: '#161622', color: '#c084fc', border: '1px solid #333', borderRadius: 4, fontSize: 10, padding: '3px 4px' }}
               >
                 <option value="">➡️ Seguir Recto</option>
-                <option value="main">🌿 Main</option>
+                <option value="main">🌿 Vía Tronco</option>
                 {Object.values(branchesMap).map(b => (
                   <option key={b.id} value={b.id}>🔀 {b.name}</option>
                 ))}
