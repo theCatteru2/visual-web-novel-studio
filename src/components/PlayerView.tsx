@@ -57,6 +57,11 @@ export default function PlayerView() {
     ? gameState.runtimeCharacters[currentEvent.speakerId] || project.characters[currentEvent.speakerId]
     : null;
 
+  // Filtrar solo las variables marcadas como visibles en el editor
+  const visibleVariables = Object.entries(gameState.runtimeVariables).filter(([key]) => {
+    return project.variables?.[key]?.isVisibleInHUD === true;
+  });
+
   const handleScreenClick = () => {
     if (currentEvent?.type === 'choice' || showHistory || askingName) return;
     advancePlayerEvent();
@@ -141,18 +146,43 @@ export default function PlayerView() {
           cursor: currentEvent?.type === 'dialogue' ? 'pointer' : 'default'
         }}
       >
-        {/* Barra Superior Limpia */}
+        {/* Barra Superior */}
         <div 
           style={{
             position: 'absolute',
             top: isMobile ? 8 : 14,
+            left: isMobile ? 8 : 16,
             right: isMobile ? 8 : 16,
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             alignItems: 'center',
             zIndex: 40
           }}
         >
+          {/* Variables Visibles en HUD configuradas por el creador */}
+          {visibleVariables.length > 0 ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {visibleVariables.map(([k, v]) => (
+                <div
+                  key={k}
+                  style={{
+                    background: 'rgba(15, 15, 20, 0.85)',
+                    backdropFilter: 'blur(6px)',
+                    padding: isMobile ? '2px 6px' : '4px 8px',
+                    borderRadius: 20,
+                    color: '#38bdf8',
+                    fontSize: isMobile ? 9 : 11,
+                    border: '1px solid rgba(56,189,248,0.3)'
+                  }}
+                >
+                  {k}: <strong style={{ color: '#fff' }}>{String(v)}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div />
+          )}
+
           <button
             onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
             style={{
