@@ -89,17 +89,24 @@ export default function TimelineEditor() {
     onConfirm: () => {}
   });
 
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMobilePortrait, setIsMobilePortrait] = useState(
+    window.innerWidth < 768 && window.innerHeight > window.innerWidth
+  );
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
 
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) setSidebarOpen(true);
+      const isPortrait = window.innerHeight > window.innerWidth;
+      const isSmall = window.innerWidth < 768 || (isPortrait && window.innerWidth < 900);
+      setIsMobilePortrait(isSmall && isPortrait);
+      if (!isSmall) setSidebarOpen(true);
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   const [activeEditingCharId, setActiveEditingCharId] = useState<string | null>(null);
@@ -143,7 +150,7 @@ export default function TimelineEditor() {
     };
     addTimelineEvent(newDialogue);
     setActiveFrameIdx(activeTimeline.length);
-    if (isMobile) setSidebarOpen(false);
+    if (isMobilePortrait) setSidebarOpen(false);
   };
 
   const handleAddChoice = () => {
@@ -158,7 +165,7 @@ export default function TimelineEditor() {
     };
     addTimelineEvent(newChoice);
     setActiveFrameIdx(activeTimeline.length);
-    if (isMobile) setSidebarOpen(false);
+    if (isMobilePortrait) setSidebarOpen(false);
   };
 
   const handleToggleCharacterOnStage = (charId: string) => {
@@ -342,8 +349,8 @@ export default function TimelineEditor() {
   return (
     <div style={{ position: 'relative', width: '100vw', height: 'calc(100vh - 48px)', display: 'flex', background: '#050508', overflow: 'hidden' }}>
       
-      {/* Botón flotante móvil posicionado sin estorbar el lienzo */}
-      {isMobile && !sidebarOpen && (
+      {/* Botón flotante móvil solo en vista portrait */}
+      {isMobilePortrait && !sidebarOpen && (
         <button
           onClick={() => setSidebarOpen(true)}
           style={{
@@ -368,7 +375,7 @@ export default function TimelineEditor() {
       )}
 
       {/* Overlay móvil */}
-      {isMobile && sidebarOpen && (
+      {isMobilePortrait && sidebarOpen && (
         <div 
           onClick={() => setSidebarOpen(false)}
           style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 45 }}
@@ -377,10 +384,10 @@ export default function TimelineEditor() {
 
       {/* Barra Lateral de Viñetas */}
       <div style={{
-        position: isMobile ? 'absolute' : 'relative',
+        position: isMobilePortrait ? 'absolute' : 'relative',
         top: 0,
         left: 0,
-        width: isMobile ? 220 : 180,
+        width: isMobilePortrait ? 220 : 180,
         height: '100%',
         background: currentBranchId !== 'main' ? '#14101e' : '#0e0e14',
         borderRight: currentBranchId !== 'main' ? '2px solid #a855f7' : '1px solid #1f1f2e',
@@ -388,10 +395,10 @@ export default function TimelineEditor() {
         flexDirection: 'column',
         zIndex: 50,
         flexShrink: 0,
-        transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
+        transform: isMobilePortrait && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
         transition: 'transform 0.25s ease'
       }}>
-        {isMobile && (
+        {isMobilePortrait && (
           <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1f1f2e' }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>Guion Gráfico</span>
             <button 
@@ -493,7 +500,7 @@ export default function TimelineEditor() {
                 }}
                 onClick={() => {
                   setActiveFrameIdx(idx);
-                  if (isMobile) setSidebarOpen(false);
+                  if (isMobilePortrait) setSidebarOpen(false);
                 }}
                 style={{
                   minHeight: 65,
@@ -560,11 +567,11 @@ export default function TimelineEditor() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: isMobile ? 'flex-start' : 'center',
+          justifyContent: isMobilePortrait ? 'flex-start' : 'center',
           background: '#09090e',
-          padding: isMobile ? 6 : 12,
+          padding: isMobilePortrait ? 6 : 12,
           boxSizing: 'border-box',
-          overflowY: isMobile ? 'auto' : 'hidden'
+          overflowY: isMobilePortrait ? 'auto' : 'hidden'
         }}
       >
         {/* Lienzo 16:9 */}
@@ -575,14 +582,14 @@ export default function TimelineEditor() {
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: isMobile ? '100%' : 'calc(100vw - 210px)',
-            maxHeight: isMobile ? 'auto' : '100%',
+            maxWidth: isMobilePortrait ? '100%' : 'calc(100vw - 210px)',
+            maxHeight: isMobilePortrait ? 'auto' : '100%',
             aspectRatio: '16 / 9',
             backgroundImage: `url(${effectiveBgUrl})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             overflow: 'hidden',
-            borderRadius: isMobile ? 8 : 14,
+            borderRadius: isMobilePortrait ? 8 : 14,
             boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
             border: '1px solid rgba(255,255,255,0.1)',
             userSelect: 'none',
@@ -646,12 +653,12 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* Barra Superior de la Escena (Separada verticalmente en móvil) */}
+          {/* Barra Superior de la Escena */}
           <div style={{ 
             position: 'absolute', 
-            top: isMobile ? 38 : 12, 
-            left: isMobile ? 8 : 12, 
-            right: isMobile ? 8 : 12, 
+            top: isMobilePortrait ? 38 : 12, 
+            left: isMobilePortrait ? 8 : 12, 
+            right: isMobilePortrait ? 8 : 12, 
             zIndex: 40, 
             display: 'flex', 
             justifyContent: 'space-between', 
@@ -666,8 +673,8 @@ export default function TimelineEditor() {
                 color: '#fff',
                 border: '1px solid #444',
                 borderRadius: 6,
-                padding: isMobile ? '3px 8px' : '4px 10px',
-                fontSize: isMobile ? 10 : 11,
+                padding: isMobilePortrait ? '3px 8px' : '4px 10px',
+                fontSize: isMobilePortrait ? 10 : 11,
                 cursor: 'pointer'
               }}
             >
@@ -685,8 +692,8 @@ export default function TimelineEditor() {
                     color: '#fff',
                     border: '1px solid rgba(255,255,255,0.2)',
                     borderRadius: 6,
-                    padding: isMobile ? '3px 8px' : '4px 10px',
-                    fontSize: isMobile ? 10 : 11,
+                    padding: isMobilePortrait ? '3px 8px' : '4px 10px',
+                    fontSize: isMobilePortrait ? 10 : 11,
                     fontWeight: 700,
                     cursor: 'pointer'
                   }}
@@ -788,21 +795,21 @@ export default function TimelineEditor() {
           {currentEvent?.type === 'choice' && (
             <div style={{
               position: 'absolute',
-              top: isMobile ? '6%' : '12%',
+              top: isMobilePortrait ? '6%' : '12%',
               left: '50%',
               transform: 'translateX(-50%)',
-              width: isMobile ? '94%' : '88%',
+              width: isMobilePortrait ? '94%' : '88%',
               maxWidth: 520,
               maxHeight: '85%',
               overflowY: 'auto',
               background: 'rgba(15, 15, 24, 0.95)',
               backdropFilter: 'blur(10px)',
               borderRadius: 12,
-              padding: isMobile ? 8 : 14,
+              padding: isMobilePortrait ? 8 : 14,
               border: '1.5px solid #a855f7',
               display: 'flex',
               flexDirection: 'column',
-              gap: isMobile ? 6 : 10,
+              gap: isMobilePortrait ? 6 : 10,
               zIndex: 35,
               boxShadow: '0 10px 40px rgba(0,0,0,0.8)'
             }}>
@@ -817,8 +824,8 @@ export default function TimelineEditor() {
                   border: '1px solid #a855f7',
                   borderRadius: 6,
                   color: '#fff',
-                  padding: isMobile ? '4px 8px' : '8px 12px',
-                  fontSize: isMobile ? 12 : 15,
+                  padding: isMobilePortrait ? '4px 8px' : '8px 12px',
+                  fontSize: isMobilePortrait ? 12 : 15,
                   boxSizing: 'border-box',
                   fontWeight: 800,
                   textAlign: 'center'
@@ -826,7 +833,7 @@ export default function TimelineEditor() {
               />
 
               {currentEvent.options.map((opt, oIdx) => (
-                <div key={opt.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#1c1c28', padding: isMobile ? 6 : 10, borderRadius: 8, border: '1px solid #2e2e42' }}>
+                <div key={opt.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: '#1c1c28', padding: isMobilePortrait ? 6 : 10, borderRadius: 8, border: '1px solid #2e2e42' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <input 
                       type="text"
@@ -843,8 +850,8 @@ export default function TimelineEditor() {
                         border: '1px solid #3b3b4f',
                         borderRadius: 6,
                         color: '#fff',
-                        padding: isMobile ? '4px 6px' : '6px 10px',
-                        fontSize: isMobile ? 11 : 13,
+                        padding: isMobilePortrait ? '4px 6px' : '6px 10px',
+                        fontSize: isMobilePortrait ? 11 : 13,
                         fontWeight: 700
                       }}
                     />
@@ -991,8 +998,8 @@ export default function TimelineEditor() {
                   border: 'none',
                   borderRadius: 6,
                   color: '#fff',
-                  padding: isMobile ? '6px' : '8px',
-                  fontSize: isMobile ? 11 : 12,
+                  padding: isMobilePortrait ? '6px' : '8px',
+                  fontSize: isMobilePortrait ? 11 : 12,
                   cursor: 'pointer',
                   fontWeight: 700
                 }}
@@ -1006,19 +1013,19 @@ export default function TimelineEditor() {
           {currentEvent?.type === 'dialogue' && (
             <div style={{
               position: 'absolute',
-              bottom: isMobile ? 4 : 12,
+              bottom: isMobilePortrait ? 4 : 12,
               left: '50%',
               transform: 'translateX(-50%)',
               width: '94%',
               background: 'rgba(10, 10, 15, 0.94)',
               backdropFilter: 'blur(10px)',
               border: `1.5px solid ${project.characters[currentEvent.speakerId]?.color || '#3b82f6'}`,
-              borderRadius: isMobile ? 8 : 14,
-              padding: isMobile ? '4px 8px' : '12px 18px',
+              borderRadius: isMobilePortrait ? 8 : 14,
+              padding: isMobilePortrait ? '4px 8px' : '12px 18px',
               zIndex: 30,
               boxSizing: 'border-box'
             }}>
-              {!isMobile ? (
+              {!isMobilePortrait ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 6, flexWrap: 'wrap' }}>
                   <select
                     value={currentEvent.speakerId}
@@ -1064,7 +1071,6 @@ export default function TimelineEditor() {
                       </select>
                     )}
 
-                    {/* Botón condicional en PC */}
                     {currentEvent.jumpToBranchId && (
                       !currentEvent.jumpCondition ? (
                         <button
@@ -1160,15 +1166,15 @@ export default function TimelineEditor() {
                 value={currentEvent.text}
                 onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, text: e.target.value })}
                 placeholder="Escribe el diálogo aquí..."
-                rows={isMobile ? 1 : 2}
+                rows={isMobilePortrait ? 1 : 2}
                 style={{
                   width: '100%',
                   background: 'transparent',
                   border: 'none',
                   outline: 'none',
                   color: '#fff',
-                  fontSize: isMobile ? 11 : 15,
-                  lineHeight: isMobile ? 1.2 : 1.4,
+                  fontSize: isMobilePortrait ? 11 : 15,
+                  lineHeight: isMobilePortrait ? 1.2 : 1.4,
                   resize: 'none',
                   boxSizing: 'border-box'
                 }}
@@ -1177,8 +1183,8 @@ export default function TimelineEditor() {
           )}
         </div>
 
-        {/* Panel de Controles Inferior para Móviles */}
-        {isMobile && currentEvent?.type === 'dialogue' && (
+        {/* Panel de Controles Inferior para Móviles en Portrait */}
+        {isMobilePortrait && currentEvent?.type === 'dialogue' && (
           <div style={{
             width: '100%',
             background: '#12121c',
