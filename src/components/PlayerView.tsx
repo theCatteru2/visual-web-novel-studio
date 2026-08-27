@@ -54,6 +54,9 @@ export default function PlayerView() {
 
   const currentEvent = timeline?.[gameState.currentEventIndex];
 
+  // Toma el fondo de la viñeta actual o el de la escena si no se definió uno individual
+  const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
+
   const speakerChar = currentEvent?.type === 'dialogue' && currentEvent.speakerId !== 'narrator'
     ? gameState.runtimeCharacters[currentEvent.speakerId] || project.characters[currentEvent.speakerId]
     : null;
@@ -131,7 +134,7 @@ export default function PlayerView() {
           maxWidth: isMobile ? '100%' : 'calc(100vw - 210px)',
           maxHeight: '100%',
           aspectRatio: '16 / 9',
-          backgroundImage: `url(${currentScene?.backgroundUrl})`,
+          backgroundImage: `url(${effectiveBgUrl})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           overflow: 'hidden',
@@ -322,7 +325,7 @@ export default function PlayerView() {
           </div>
         )}
 
-        {/* Caja de Diálogo Adaptativa (Grande en PC, Compacta en Móvil) */}
+        {/* Caja de Diálogo Adaptativa */}
         {currentEvent?.type === 'dialogue' && (
           <div 
             style={{
