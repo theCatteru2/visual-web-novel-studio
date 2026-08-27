@@ -50,7 +50,7 @@ export interface DialogueEvent {
   id: string;
   speakerId: string;
   text: string;
-  backgroundUrl?: string; // 👈 Fondo individual por viñeta
+  backgroundUrl?: string;
   charactersOnStage: StageCharacterInstance[];
   effect?: ScreenEffect;
   jumpToBranchId?: string;
@@ -63,7 +63,7 @@ export interface ChoiceEvent {
   type: 'choice';
   id: string;
   prompt: string;
-  backgroundUrl?: string; // 👈 Fondo individual por viñeta
+  backgroundUrl?: string;
   options: ChoiceOption[];
   condition?: VariableCondition;
 }
@@ -118,6 +118,7 @@ export interface CustomVariable {
   type: 'boolean' | 'number' | 'string';
   defaultValue: boolean | number | string;
   description?: string;
+  isVisibleInHUD?: boolean; // 👈 Interruptor para mostrar u ocultar en pantalla
 }
 
 export interface NovelProject {
