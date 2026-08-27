@@ -50,6 +50,7 @@ export interface DialogueEvent {
   id: string;
   speakerId: string;
   text: string;
+  backgroundUrl?: string; // 👈 Fondo individual por viñeta
   charactersOnStage: StageCharacterInstance[];
   effect?: ScreenEffect;
   jumpToBranchId?: string;
@@ -62,6 +63,7 @@ export interface ChoiceEvent {
   type: 'choice';
   id: string;
   prompt: string;
+  backgroundUrl?: string; // 👈 Fondo individual por viñeta
   options: ChoiceOption[];
   condition?: VariableCondition;
 }
@@ -125,8 +127,8 @@ export interface NovelProject {
   isPublic: boolean;
   createdAt: number;
   updatedAt: number;
-  askPlayerName?: boolean;        // 👈 Opción de pedir nombre
-  defaultPlayerName?: string;     // 👈 Nombre por defecto
+  askPlayerName?: boolean;
+  defaultPlayerName?: string;
   backgroundGallery: { id: string; name: string; url: string }[];
   variables: Record<string, CustomVariable>;
   characters: Record<string, Character>;
@@ -138,7 +140,7 @@ export interface PlayerGameState {
   currentSceneId: string;
   currentBranchId: string;
   currentEventIndex: number;
-  playerName: string;            // 👈 Nombre ingresado en partida
+  playerName: string;
   runtimeVariables: Record<string, boolean | number | string>;
   runtimeCharacters: Record<string, Character>;
   history: string[];
