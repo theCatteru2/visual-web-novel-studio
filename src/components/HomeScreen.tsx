@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
 
 interface HomeScreenProps {
@@ -284,10 +284,7 @@ export default function HomeScreen({
 
   const scale = isPortrait ? 1 : 0.92;
 
-  const hoverStyle = (name: string) => ({
-    transform: hovered === name ? 'translateY(-3px)' : 'translateY(0)',
-    filter: hovered === name ? 'brightness(1.12)' : 'brightness(1)'
-  });
+
 
   return (
     <div

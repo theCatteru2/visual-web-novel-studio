@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { useNovel } from '../context/NovelContext';
 import { ProjectAudioItem } from '../types';
 
@@ -22,7 +22,7 @@ export default function AudioModal({
   onOpenStore
 }: AudioModalProps) {
   const { project, setProject } = useNovel();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   if (!isOpen) return null;
 

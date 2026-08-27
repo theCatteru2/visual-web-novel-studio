@@ -9,7 +9,6 @@ import {
   CharacterAnimation, 
   StageCharacterInstance, 
   TimelineEvent, 
-  VariableChange,
   ScreenEffect
 } from '../types';
 import VariablesModal from './VariablesModal';

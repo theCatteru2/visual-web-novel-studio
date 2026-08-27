@@ -13,7 +13,7 @@ interface AssetStoreModalProps {
 
 export default function AssetStoreModal({ isOpen, onClose, defaultCategory = 'background' }: AssetStoreModalProps) {
   const { user, profile, loginWithGoogle } = useAuth();
-  const { project, setProject } = useNovel();
+  const { setProject } = useNovel();
 
   const [category, setCategory] = useState<'background' | 'character' | 'bgm' | 'sfx'>(defaultCategory);
   const [assets, setAssets] = useState<CommunityAsset[]>([]);

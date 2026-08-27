@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNovel } from '../context/NovelContext';
-import { LibraryNovelEntry } from '../types';
 
 interface LibraryModalProps {
   isOpen: boolean;
@@ -26,7 +25,6 @@ export default function LibraryModal({
   const communityNovels = entries.filter(e => !e.isOwner);
 
   const displayedNovels = activeTab === 'my_novels' ? myNovels : communityNovels;
-  const selectedNovel: LibraryNovelEntry | undefined = selectedNovelId ? library[selectedNovelId] : undefined;
 
   const handlePlayFresh = (novelId: string) => {
     loadProjectFromLibrary(novelId);
