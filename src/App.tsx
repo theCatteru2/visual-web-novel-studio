@@ -8,6 +8,7 @@ import CharacterTreeModal from './components/CharacterTreeModal';
 import PublishModal from './components/PublishModal';
 import CommunityFeed from './components/CommunityFeed';
 import HomeScreen from './components/HomeScreen';
+import UserProfileView from './components/UserProfileView'; // 👈 Nuevo componente
 
 function MainStudio() {
   const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile'>('home');
@@ -43,10 +44,16 @@ function MainStudio() {
         )}
         {mode === 'editor' && <TimelineEditor />}
         {mode === 'player' && <PlayerView />}
-        {(mode === 'community' || mode === 'profile') && (
+        {mode === 'community' && (
           <CommunityFeed 
             onPlayNovel={() => setMode('player')} 
             onOpenProfile={() => setMode('profile')}
+          />
+        )}
+        {mode === 'profile' && (
+          <UserProfileView 
+            onBackToFeed={() => setMode('community')}
+            onPlayNovel={() => setMode('player')}
           />
         )}
       </div>
