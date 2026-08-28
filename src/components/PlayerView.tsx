@@ -375,7 +375,7 @@ export default function PlayerView() {
           </div>
         </div>
 
-        {/* Personajes en Escena */}
+       {/* Personajes en Escena */}
 {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
   const charDef = project.characters[inst.characterId];
   if (!charDef) return null;
@@ -393,15 +393,32 @@ export default function PlayerView() {
     <div
       key={inst.characterId}
       style={{
-  position: 'absolute',
-  bottom: slotY,
-  left: slotX,
-  transform: 'translateX(-50%)',
-  transition: 'bottom 0.2s ease, left 0.2s ease, height 0.2s ease',
-  pointerEvents: 'none',
-  zIndex: 10,
-  height: scale,
-}}
+        position: 'absolute',
+        bottom: slotY,
+        left: slotX,
+        transform: 'translateX(-50%)',
+        transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
+        pointerEvents: 'none',
+        zIndex: 10,
+        height: scale,
+        filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
+      }}
+    >
+      <img
+        src={resolvedSprite}
+        alt={charDef.name}
+        draggable={false}
+        style={{
+          display: 'block',
+          height: '100%',
+          width: 'auto',
+          objectFit: 'contain',
+          animation: getAnimationKeyframes(inst.animation)
+        }}
+      />
+    </div>
+  );
+})}
     >
       <div
         key={`anim_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
