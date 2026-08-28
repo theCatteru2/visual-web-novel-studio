@@ -393,15 +393,15 @@ export default function PlayerView() {
     <div
       key={inst.characterId}
       style={{
-        position: 'absolute',
-        bottom: slotY,
-        left: slotX,
-        transform: 'translateX(-50%)',
-        transition: 'bottom 0.2s ease, left 0.2s ease',
-        pointerEvents: 'none',
-        zIndex: 10,
-        height: scale,
-      }}
+  position: 'absolute',
+  bottom: slotY,
+  left: slotX,
+  transform: 'translateX(-50%)',
+  transition: 'bottom 0.2s ease, left 0.2s ease, height 0.2s ease',
+  pointerEvents: 'none',
+  zIndex: 10,
+  height: scale,
+}}
     >
       <div
         key={`anim_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
