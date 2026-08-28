@@ -373,43 +373,48 @@ export default function PlayerView() {
         </div>
 
         {/* Personajes en Escena */}
-        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
-          const charDef = project.characters[inst.characterId];
-          if (!charDef) return null;
+{currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
+  const charDef = project.characters[inst.characterId];
+  if (!charDef) return null;
 
-          const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
-          const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
-          const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+  const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
+  const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+  const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-          const resolvedSprite = charDef.expressions?.[inst.expression] 
-            || Object.values(charDef.expressions || {})[0] 
-            || charDef.avatarUrl;
+  const resolvedSprite = charDef.expressions?.[inst.expression] 
+    || Object.values(charDef.expressions || {})[0] 
+    || charDef.avatarUrl;
 
-          return (
-            <div
-              key={`${inst.characterId}_evt_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
-              style={{
-                position: 'absolute',
-                bottom: slotY,
-                left: slotX,
-                transform: 'translateX(-50%)',
-                transition: 'all 0.2s ease',
-                pointerEvents: 'none',
-                zIndex: 10,
-                height: scale,
-                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
-                animation: getAnimationKeyframes(inst.animation)
-              }}
-            >
-              <img 
-                src={resolvedSprite} 
-                alt={charDef.name}
-                draggable={false}
-                style={{ height: '100%', width: 'auto', objectFit: 'contain' }}
-              />
-            </div>
-          );
-        })}
+  return (
+    <div
+      key={inst.characterId}
+      style={{
+        position: 'absolute',
+        bottom: slotY,
+        left: slotX,
+        transform: 'translateX(-50%)',
+        transition: 'bottom 0.2s ease, left 0.2s ease',
+        pointerEvents: 'none',
+        zIndex: 10,
+        height: scale,
+        filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
+      }}
+    >
+      <img 
+        key={`img_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
+        src={resolvedSprite} 
+        alt={charDef.name}
+        draggable={false}
+        style={{ 
+          height: '100%', 
+          width: 'auto', 
+          objectFit: 'contain',
+          animation: getAnimationKeyframes(inst.animation)
+        }}
+      />
+    </div>
+  );
+})}
 
         {/* Decisiones */}
         {currentEvent?.type === 'choice' && (
