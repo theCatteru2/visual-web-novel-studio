@@ -6,6 +6,7 @@ interface HomeScreenProps {
   onStartTest: () => void;
   onOpenCommunity: () => void;
   onOpenProfile: () => void;
+  onOpenLibrary: () => void; // 👈 Prop para abrir la biblioteca privada
 }
 
 /* =========================================================
@@ -20,7 +21,8 @@ type IconName =
   | 'users'
   | 'user'
   | 'star'
-  | 'arrow';
+  | 'arrow'
+  | 'book';
 
 function Icon({
   name,
@@ -75,6 +77,26 @@ function Icon({
           <path
             d="M8 5.5L18 12L8 18.5V5.5Z"
             fill="currentColor"
+          />
+        </svg>
+      );
+
+    case 'book':
+      return (
+        <svg {...common}>
+          <path
+            d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       );
@@ -213,7 +235,8 @@ export default function HomeScreen({
   onOpenEditor,
   onStartTest,
   onOpenCommunity,
-  onOpenProfile
+  onOpenProfile,
+  onOpenLibrary
 }: HomeScreenProps) {
   const {
     project,
@@ -270,7 +293,7 @@ export default function HomeScreen({
   };
 
   const handleTestProject = () => {
-    startPlaytest();
+    startPlaytest(undefined, true);
     onStartTest();
   };
 
@@ -283,8 +306,6 @@ export default function HomeScreen({
   const totalVars = Object.keys(project.variables || {}).length;
 
   const scale = isPortrait ? 1 : 0.92;
-
-
 
   return (
     <div
@@ -328,7 +349,6 @@ export default function HomeScreen({
       }}
     >
       {/* Fondo cuadriculado */}
-
       <div
         style={{
           position: 'fixed',
@@ -353,7 +373,6 @@ export default function HomeScreen({
       />
 
       {/* Estrellas */}
-
       <div
         style={{
           position: 'fixed',
@@ -403,7 +422,6 @@ export default function HomeScreen({
         {/* =========================
             HEADER
         ========================= */}
-
         <header
           style={{
             display: 'flex',
@@ -498,7 +516,6 @@ export default function HomeScreen({
                   '0 0 10px rgba(53, 233, 154, 0.7)'
               }}
             />
-
             PROYECTO LISTO
           </div>
         </header>
@@ -506,7 +523,6 @@ export default function HomeScreen({
         {/* =========================
             TÍTULO
         ========================= */}
-
         <section
           style={{
             textAlign: 'center',
@@ -546,7 +562,6 @@ export default function HomeScreen({
         {/* =========================
             PROYECTO ACTIVO
         ========================= */}
-
         <section
           style={{
             position: 'relative',
@@ -722,7 +737,6 @@ export default function HomeScreen({
         {/* =========================
             ACCIONES PRINCIPALES
         ========================= */}
-
         <section
           style={{
             display: 'grid',
@@ -782,7 +796,6 @@ export default function HomeScreen({
         {/* =========================
             GESTIÓN
         ========================= */}
-
         <section
           style={{
             borderRadius: 16,
@@ -840,18 +853,28 @@ export default function HomeScreen({
         </section>
 
         {/* =========================
-            COMUNIDAD / PERFIL
+            BIBLIOTECA / COMUNIDAD / PERFIL
         ========================= */}
-
         <section
           style={{
             display: 'grid',
             gridTemplateColumns: isPortrait
               ? '1fr'
-              : 'repeat(2, 1fr)',
+              : 'repeat(3, 1fr)',
             gap: 10
           }}
         >
+          <NavigationCard
+            name="library"
+            hovered={hovered}
+            setHovered={setHovered}
+            icon="book"
+            title="MI BIBLIOTECA"
+            description="Gestiona hasta 15 novelas privadas"
+            onClick={onOpenLibrary}
+            accent="#a855f7"
+          />
+
           <NavigationCard
             name="community"
             hovered={hovered}
@@ -878,7 +901,6 @@ export default function HomeScreen({
         {/* =========================
             FOOTER
         ========================= */}
-
         <footer
           style={{
             display: 'flex',
@@ -905,7 +927,6 @@ export default function HomeScreen({
     </div>
   );
 }
-
 
 /* =========================================================
    ESTADÍSTICA
@@ -956,7 +977,6 @@ function Stat({
   );
 }
 
-
 /* =========================================================
    ACCIÓN PRINCIPAL
 ========================================================= */
@@ -1006,14 +1026,8 @@ function MainAction({
           ? `0 15px 45px ${accent}30`
           : '0 10px 30px rgba(0, 0, 0, 0.20)',
         transition: 'all 160ms ease',
-        ...({
-          transform: active
-            ? 'translateY(-3px)'
-            : 'translateY(0)',
-          filter: active
-            ? 'brightness(1.12)'
-            : 'brightness(1)'
-        })
+        transform: active ? 'translateY(-3px)' : 'translateY(0)',
+        filter: active ? 'brightness(1.12)' : 'brightness(1)'
       }}
     >
       <div
@@ -1084,7 +1098,6 @@ function MainAction({
   );
 }
 
-
 /* =========================================================
    ACCIÓN PEQUEÑA
 ========================================================= */
@@ -1137,9 +1150,7 @@ function SmallAction({
             ? `${accent}66`
             : 'rgba(100, 112, 180, 0.14)'
         }`,
-        transform: active
-          ? 'translateY(-2px)'
-          : 'translateY(0)',
+        transform: active ? 'translateY(-2px)' : 'translateY(0)',
         transition: 'all 150ms ease'
       }}
     >
@@ -1194,7 +1205,6 @@ function SmallAction({
   );
 }
 
-
 /* =========================================================
    TARJETA DE NAVEGACIÓN
 ========================================================= */
@@ -1247,9 +1257,7 @@ function NavigationCard({
             ? `${accent}70`
             : 'rgba(100, 112, 180, 0.16)'
         }`,
-        transform: active
-          ? 'translateY(-2px)'
-          : 'translateY(0)',
+        transform: active ? 'translateY(-2px)' : 'translateY(0)',
         boxShadow: active
           ? `0 10px 30px ${accent}12`
           : 'none',
