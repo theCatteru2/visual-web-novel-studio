@@ -47,7 +47,7 @@ interface NovelContextType {
 
   gameState: PlayerGameState;
   setPlayerName: (name: string) => void;
-  startPlaytest: (customInitialState?: PlayerGameState) => void;
+  startPlaytest: (customInitialState?: PlayerGameState, fromStart?: boolean) => void;
   advancePlayerEvent: () => void;
   selectChoiceOption: (optionId: string) => void;
   jumpToScene: (sceneId: string) => void;
@@ -621,14 +621,14 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const startPlaytest = (customInitialState?: PlayerGameState) => {
+  const startPlaytest = (customInitialState?: PlayerGameState, fromStart = false) => {
     if (customInitialState) {
       setGameState(customInitialState);
       return;
     }
 
-    const targetChapId = currentChapterId || project.chapters[0]?.id || '';
-    const targetSceneId = currentSceneId || project.chapters[0]?.scenes[0]?.id || '';
+    const targetChapId = fromStart ? (project.chapters[0]?.id || '') : (currentChapterId || project.chapters[0]?.id || '');
+    const targetSceneId = fromStart ? (project.chapters[0]?.scenes[0]?.id || '') : (currentSceneId || project.chapters[0]?.scenes[0]?.id || '');
 
     const initialVars: Record<string, boolean | number | string> = {};
     Object.values(project.variables || {}).forEach(v => {
