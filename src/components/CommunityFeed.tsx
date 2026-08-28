@@ -226,7 +226,7 @@ export default function CommunityFeed({ onPlayNovel }: CommunityFeedProps) {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14, maxWidth: 1200, margin: '0 auto' }}>
             {filteredNovels.map(novel => {
-              const isMyNovel = user && (novel.authorId === user.uid || profile?.role === 'admin');
+              const isMyNovel = user && (novel.authorId === user.uid || (profile as any)?.role === 'admin');
 
               return (
                 <div key={novel.id} style={{ position: 'relative', background: '#13131e', border: `1px solid ${novel.isNsfw ? '#f43f5e55' : '#222233'}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
