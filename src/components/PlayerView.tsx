@@ -184,23 +184,26 @@ export default function PlayerView() {
     >
       <style>{`
         @keyframes jumpAnim {
-          0% { transform: translate(-50%, 0); }
-          50% { transform: translate(-50%, -25px); }
-          100% { transform: translate(-50%, 0); }
-        }
-        @keyframes shakeAnim {
-          0%, 100% { transform: translate(-50%, 0); }
-          25% { transform: translate(-55%, 0); }
-          75% { transform: translate(-45%, 0); }
-        }
-        @keyframes fadeInAnim {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-        @keyframes slideInAnim {
-          0% { transform: translate(-70%, 0); opacity: 0; }
-          100% { transform: translate(-50%, 0); opacity: 1; }
-        }
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-25px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes shakeAnim {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@keyframes fadeInAnim {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes slideInAnim {
+  0% { transform: translateX(-40px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
 
         /* Estilo estándar en PC */
         .vn-dialog-box {
