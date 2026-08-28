@@ -56,7 +56,6 @@ export default function TimelineEditor() {
   const { 
     project, 
     setProject,
-    currentChapterId, 
     currentSceneId, 
     currentBranchId,
     setCurrentBranchId,
@@ -70,8 +69,8 @@ export default function TimelineEditor() {
     deleteBackgroundFromGallery
   } = useNovel();
 
-  const currentChapter = project.chapters.find(c => c.id === currentChapterId) || project.chapters[0];
-  const currentScene = currentChapter?.scenes.find(s => s.id === currentSceneId) || currentChapter?.scenes[0];
+  const scenesList = (project as any).scenes || project.chapters?.[0]?.scenes || [];
+  const currentScene = scenesList.find((s: any) => s.id === currentSceneId) || scenesList[0];
 
   const [activeFrameIdx, setActiveFrameIdx] = useState(0);
   const [showBranchesModal, setShowBranchesModal] = useState(false);
@@ -873,7 +872,6 @@ export default function TimelineEditor() {
             const scaleHeight = SCALES.find(s => s.scale === inst.scale)?.heightPercent ?? 68;
             const isDraggingThis = draggingCharId === inst.characterId;
 
-            // Selección segura de sprite
             const resolvedSprite = charDef.expressions[inst.expression] 
               || Object.values(charDef.expressions)[0] 
               || charDef.avatarUrl;
@@ -1120,7 +1118,7 @@ export default function TimelineEditor() {
             </div>
           )}
 
-          {/* Caja de Diálogo sobre el Lienzo (Ajustada para que en vertical quede abajo y compacta) */}
+          {/* Caja de Diálogo sobre el Lienzo */}
           {currentEvent?.type === 'dialogue' && (
             <div style={{
               position: 'absolute',
