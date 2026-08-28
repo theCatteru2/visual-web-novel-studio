@@ -719,16 +719,16 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // 3. Siguiente escena si se acabaron las viñetas
       const currentIdx = scenes.findIndex(item => item.id === currentScene.id);
       if (currentIdx !== -1 && currentIdx < scenes.length - 1) {
-        const nextScene = scenes[currentIdx + 1];
-        return {
-          ...prev,
-          currentSceneId: nextScene.id,
-          currentBranchId: 'main',
-          currentEventIndex: 0,
-          history: nextHistory,
-          activeEffect: 'none'
-        };
-      }
+    const nextScene = scenes[currentIdx + 1];
+    return {
+        ...prev,
+        currentSceneId: nextScene.id,
+        currentBranchId: 'main',
+        currentEventIndex: 0,
+        history: nextHistory,
+        activeEffect: 'none'
+    };
+}
 
       // Fin de la historia
       return {
