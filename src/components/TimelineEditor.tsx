@@ -10,6 +10,7 @@ import {
   StageCharacterInstance, 
   TimelineEvent, 
   VariableChange,
+  Branch,
   ScreenEffect
 } from '../types';
 import VariablesModal from './VariablesModal';
@@ -150,7 +151,7 @@ export default function TimelineEditor() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const bgImportInputRef = useRef<HTMLInputElement>(null);
 
-  const branchesMap = currentScene?.branches || {};
+  const branchesMap: Record<string, Branch> = currentScene?.branches || {};
   const activeTimeline: TimelineEvent[] = currentBranchId === 'main'
     ? (currentScene?.timeline || [])
     : (branchesMap[currentBranchId]?.timeline || []);
