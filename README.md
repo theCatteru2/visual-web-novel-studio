@@ -9,7 +9,7 @@
 Este proyecto es de código abierto y de uso gratuito. Si quieres colaborar con los costos de los servidores (base de datos en la nube / hosting) y el desarrollo activo de nuevas herramientas:
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/thejoirent)
-**[ko-fi.com/thejoirent](https://ko-fi.com/thejoirent)**
+
 
 
 # ⚠️ Descargo de Responsabilidad / Disclaimer
