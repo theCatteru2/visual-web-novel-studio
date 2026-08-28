@@ -25,6 +25,15 @@ export interface VariableChange {
   value: boolean | number | string;
 }
 
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  email?: string;
+  avatarUrl?: string;
+  role?: 'admin' | 'moderator' | 'user' | string;
+  createdAt?: number;
+}
+
 export interface StageCharacterInstance {
   characterId: string;
   expression: string;
