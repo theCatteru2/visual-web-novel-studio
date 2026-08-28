@@ -184,15 +184,15 @@ export default function PlayerView() {
     >
       <style>{`
         @keyframes jumpAnim {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-25px); }
-  100% { transform: translateY(0); }
+  0% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -25px); }
+  100% { transform: translate(-50%, 0); }
 }
 
 @keyframes shakeAnim {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
+  0%, 100% { transform: translate(-50%, 0); }
+  25% { transform: translate(-55%, 0); }
+  75% { transform: translate(-45%, 0); }
 }
 
 @keyframes fadeInAnim {
@@ -201,8 +201,8 @@ export default function PlayerView() {
 }
 
 @keyframes slideInAnim {
-  0% { transform: translateX(-40px); opacity: 0; }
-  100% { transform: translateX(0); opacity: 1; }
+  0% { transform: translate(-70%, 0); opacity: 0; }
+  100% { transform: translate(-50%, 0); opacity: 1; }
 }
 
         /* Estilo estándar en PC */
@@ -384,9 +384,10 @@ export default function PlayerView() {
   const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
   const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-  const resolvedSprite = charDef.expressions?.[inst.expression] 
-    || Object.values(charDef.expressions || {})[0] 
-    || charDef.avatarUrl;
+  const resolvedSprite =
+    charDef.expressions?.[inst.expression] ||
+    Object.values(charDef.expressions || {})[0] ||
+    charDef.avatarUrl;
 
   return (
     <div
@@ -400,25 +401,32 @@ export default function PlayerView() {
         pointerEvents: 'none',
         zIndex: 10,
         height: scale,
-        filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
       }}
     >
-      <img 
-        key={`img_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
-        src={resolvedSprite} 
-        alt={charDef.name}
-        draggable={false}
-        style={{ 
-          height: '100%', 
-          width: 'auto', 
-          objectFit: 'contain',
-          animation: getAnimationKeyframes(inst.animation)
+      <div
+        key={`anim_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
+        style={{
+          height: '100%',
+          width: 'fit-content',
+          animation: getAnimationKeyframes(inst.animation),
+          filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
         }}
-      />
+      >
+        <img
+          src={resolvedSprite}
+          alt={charDef.name}
+          draggable={false}
+          style={{
+            display: 'block',
+            height: '100%',
+            width: 'auto',
+            objectFit: 'contain',
+          }}
+        />
+      </div>
     </div>
   );
 })}
-
         {/* Decisiones */}
         {currentEvent?.type === 'choice' && (
           <div 
