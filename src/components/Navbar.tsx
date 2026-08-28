@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useNovel } from '../context/NovelContext';
 import { useAuth } from '../context/AuthContext';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface NavbarProps {
   mode: 'home' | 'editor' | 'player' | 'community' | 'profile' | 'library';
@@ -17,10 +19,19 @@ export default function Navbar({
   onOpenPublishModal,
   onTriggerEditorPlay
 }: NavbarProps) {
-  const { project, setProject, exportProjectJson, importProjectJson, startPlaytest } = useNovel();
+  const { 
+    project, 
+    setProject, 
+    exportProjectJson, 
+    importProjectJson, 
+    startPlaytest,
+    activeLibraryNovelId,
+    resetProjectToDefault 
+  } = useNovel();
   const { user, profile, loginWithGoogle, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [isShortHeight, setIsShortHeight] = useState(window.innerHeight < 500);
 
   useEffect(() => {
@@ -45,7 +56,7 @@ export default function Navbar({
       if (content) {
         const ok = importProjectJson(content);
         if (ok) {
-          alert('¡Proyecto cargado con éxito!');
+          alert('¡Proyecto importado con éxito en el editor!');
         } else {
           alert('Error al leer el archivo JSON.');
         }
@@ -53,6 +64,51 @@ export default function Navbar({
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  // Guardar cambios en la nube directamente desde la barra
+  const handleSaveActiveNovel = async () => {
+    if (!user) {
+      alert('Tu proyecto está guardado en la memoria local del navegador. Inicia sesión para guardarlo en la nube.');
+      return;
+    }
+
+    if (!activeLibraryNovelId) {
+      alert('Este proyecto no proviene de tu biblioteca privada todavía. Ve a "📚 Biblioteca" para guardarlo en una casilla nueva.');
+      return;
+    }
+
+    setIsSavingCloud(true);
+    try {
+      const scenes = (project as any).scenes || project.chapters?.[0]?.scenes || [];
+      const cover = project.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl || '';
+
+      await updateDoc(doc(db, 'user_library', activeLibraryNovelId), {
+        title: project.title || 'Novela sin título',
+        description: project.description || '',
+        coverUrl: cover,
+        updatedAt: Date.now(),
+        projectData: project
+      });
+      alert('¡Cambios guardados con éxito en tu biblioteca privada!');
+    } catch (e: any) {
+      console.error(e);
+      alert('Error al guardar en la nube: ' + (e.message || 'Verifica tu conexión.'));
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  // Crear novela desde cero con confirmación de seguridad
+  const handleNewBlankNovel = () => {
+    const confirmMsg = activeLibraryNovelId
+      ? '¿Estás seguro de crear un proyecto nuevo? Asegúrate de haber guardado los cambios de la novela actual.'
+      : '¿Deseas iniciar una novela en blanco desde cero? Se reiniciará el borrador actual.';
+
+    if (window.confirm(confirmMsg)) {
+      resetProjectToDefault();
+      alert('Se ha creado un nuevo proyecto en blanco.');
+    }
   };
 
   const handleStartPlay = () => {
@@ -82,7 +138,7 @@ export default function Navbar({
       whiteSpace: 'nowrap'
     }}>
       {/* Botón de Inicio + Título de la Novela */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 100, maxWidth: 200 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 100, maxWidth: 220 }}>
         <button
           onClick={() => setMode('home')}
           title="Menú de Inicio"
@@ -98,32 +154,76 @@ export default function Navbar({
           🏠
         </button>
 
-        <input
-          type="text"
-          value={project.title}
-          onChange={(e) => setProject(prev => ({ ...prev, title: e.target.value }))}
-          placeholder="Título..."
-          style={{
-            background: 'transparent',
-            border: 'none',
-            borderBottom: '1px dashed rgba(255,255,255,0.2)',
-            color: '#f3f4f6',
-            fontWeight: 800,
-            fontSize: isShortHeight ? 11 : 13,
-            outline: 'none',
-            width: '100%',
-            padding: '2px 4px'
-          }}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%' }}>
+          <input
+            type="text"
+            value={project.title}
+            onChange={(e) => setProject(prev => ({ ...prev, title: e.target.value }))}
+            placeholder="Título de la novela..."
+            style={{
+              background: 'transparent',
+              border: 'none',
+              borderBottom: '1px dashed rgba(255,255,255,0.2)',
+              color: '#f3f4f6',
+              fontWeight: 800,
+              fontSize: isShortHeight ? 11 : 13,
+              outline: 'none',
+              width: '100%',
+              padding: '1px 2px'
+            }}
+          />
+          {activeLibraryNovelId && (
+            <span style={{ fontSize: 8, color: '#38bdf8', fontWeight: 700, lineHeight: 1 }}>
+              • Editando de Biblioteca
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Controles de Acción Rápidos */}
+      {/* Controles de Acción */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
         
+        {/* Crear Nueva Novela */}
+        <button
+          onClick={handleNewBlankNovel}
+          title="Comenzar una novela desde cero"
+          style={{
+            padding: isShortHeight ? '4px 6px' : '6px 8px',
+            background: '#161622',
+            border: '1px solid #2d2d3f',
+            color: '#38bdf8',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 10,
+            fontWeight: 700
+          }}
+        >
+          ✨ <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Nuevo</span>
+        </button>
+
+        {/* Guardar Cambios (Directo en la nube si está enlazado) */}
+        <button
+          onClick={handleSaveActiveNovel}
+          disabled={isSavingCloud}
+          title={activeLibraryNovelId ? "Guardar cambios en tu biblioteca" : "Guardado automático local activo"}
+          style={{
+            padding: isShortHeight ? '4px 8px' : '6px 10px',
+            background: activeLibraryNovelId ? '#10b981' : '#161622',
+            border: activeLibraryNovelId ? 'none' : '1px solid #2d2d3f',
+            color: activeLibraryNovelId ? '#042f1f' : '#38bdf8',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 10,
+            fontWeight: 800
+          }}
+        >
+          💾 {isSavingCloud ? 'Guardando...' : (activeLibraryNovelId ? 'Guardar Cambios' : 'Guardado Local')}
+        </button>
+
         {/* Biblioteca Privada */}
         <button
           onClick={() => setMode('library')}
-          title="Mi Biblioteca Privada (hasta 15 novelas)"
+          title="Abrir Mi Biblioteca Privada"
           style={{
             padding: isShortHeight ? '4px 6px' : '6px 8px',
             background: mode === 'library' ? '#7c3aed' : '#161622',
@@ -192,10 +292,10 @@ export default function Navbar({
           👥 <span style={{ display: isShortHeight || window.innerWidth < 480 ? 'none' : 'inline' }}>Personajes</span>
         </button>
 
-        {/* Exportar JSON */}
+        {/* Exportar JSON (Claramente identificado) */}
         <button
           onClick={exportProjectJson}
-          title="Guardar archivo .json"
+          title="Descargar copia de seguridad en archivo .json"
           style={{
             padding: isShortHeight ? '4px 6px' : '6px 8px',
             background: '#161622',
@@ -206,13 +306,13 @@ export default function Navbar({
             fontSize: 10
           }}
         >
-          💾
+          📥 <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Exportar JSON</span>
         </button>
 
         {/* Importar JSON */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          title="Abrir archivo .json"
+          title="Cargar archivo .json en el editor"
           style={{
             padding: isShortHeight ? '4px 6px' : '6px 8px',
             background: '#161622',
@@ -272,7 +372,7 @@ export default function Navbar({
 
         <div style={{ width: 1, height: 16, background: '#2d2d3f', margin: '0 2px' }} />
 
-        {/* Cuenta de Usuario / Iniciar Sesión */}
+        {/* Cuenta de Usuario */}
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button
