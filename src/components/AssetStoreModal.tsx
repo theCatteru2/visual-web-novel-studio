@@ -490,7 +490,7 @@ export default function AssetStoreModal({ isOpen, onClose, defaultCategory = 'ba
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
               {filteredAssets.map(asset => {
-                const isMyAsset = user && (asset.authorId === user.uid || profile?.role === 'admin');
+                const isMyAsset = user && (asset.authorId === user.uid || (profile as any)?.role === 'admin');
 
                 return (
                   <div key={asset.id} style={{ position: 'relative', background: '#161622', border: `1px solid ${asset.isNsfw ? '#f43f5e55' : '#28283a'}`, borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
