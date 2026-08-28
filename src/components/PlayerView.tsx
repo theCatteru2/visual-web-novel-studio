@@ -386,28 +386,36 @@ export default function PlayerView() {
             || charDef.avatarUrl;
 
           return (
-            <div
-              key={`${inst.characterId}_evt_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
-              style={{
-                position: 'absolute',
-                bottom: slotY,
-                left: slotX,
-                transform: 'translateX(-50%)',
-                transition: 'all 0.2s ease',
-                pointerEvents: 'none',
-                zIndex: 10,
-                height: scale,
-                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
-                animation: getAnimationKeyframes(inst.animation)
-              }}
-            >
-              <img 
-                src={resolvedSprite} 
-                alt={charDef.name}
-                draggable={false}
-                style={{ height: '100%', width: 'auto', objectFit: 'contain' }}
-              />
-            </div>
+            return (
+  <div
+    key={inst.characterId}
+    style={{
+      position: 'absolute',
+      bottom: slotY,
+      left: slotX,
+      transform: 'translateX(-50%)',
+      transition: 'left 0.35s ease, bottom 0.35s ease, height 0.35s ease, filter 0.35s ease',
+      pointerEvents: 'none',
+      zIndex: 10,
+      height: scale,
+      filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
+    }}
+  >
+    <img 
+      key={`${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
+      src={resolvedSprite} 
+      alt={charDef.name}
+      draggable={false}
+      style={{ 
+        height: '100%', 
+        width: 'auto', 
+        objectFit: 'contain',
+        animation: getAnimationKeyframes(inst.animation)
+      }}
+    />
+  </div>
+);
+
           );
         })}
 
