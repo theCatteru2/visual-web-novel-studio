@@ -330,7 +330,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ...prev,
         [novelId]: {
           ...existingEntry,
-          lastPlayedAt: Date.now(),
+          lastPlayedAt: Date.now>,
           saveSlots: {
             ...existingEntry.saveSlots,
             [slotId]: newSlot
@@ -697,19 +697,16 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const advancePlayerEvent = () => {
     setGameState(prev => {
       let currentScene: any = null;
-      let currentChap: any = null;
 
       for (const chap of project.chapters) {
         const s = chap.scenes.find(sc => sc.id === prev.currentSceneId);
         if (s) {
-          currentChap = chap;
           currentScene = s;
           break;
         }
       }
 
       if (!currentScene && project.chapters[0]?.scenes[0]) {
-        currentChap = project.chapters[0];
         currentScene = project.chapters[0].scenes[0];
       }
       if (!currentScene) return prev;
