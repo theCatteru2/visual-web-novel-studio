@@ -6,7 +6,7 @@ interface HomeScreenProps {
   onStartTest: () => void;
   onOpenCommunity: () => void;
   onOpenProfile: () => void;
-  onOpenLibrary: () => void; // 👈 Prop para abrir la biblioteca privada
+  onOpenLibrary: () => void;
 }
 
 /* =========================================================
@@ -22,7 +22,8 @@ type IconName =
   | 'user'
   | 'star'
   | 'arrow'
-  | 'book';
+  | 'book'
+  | 'coffee';
 
 function Icon({
   name,
@@ -61,12 +62,14 @@ function Icon({
             stroke="currentColor"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
           <path
             d="M8 13.5L5.5 11M11 10.5L8.5 8M14 7.5L11.8 5.3"
             stroke="currentColor"
             strokeWidth={strokeWidth - 0.2}
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       );
@@ -108,6 +111,7 @@ function Icon({
             d="M3.5 6.5C3.5 5.67 4.17 5 5 5H9L11 7H19C19.83 7 20.5 7.67 20.5 8.5V17.5C20.5 18.33 19.83 19 19 19H5C4.17 19 3.5 18.33 3.5 17.5V6.5Z"
             stroke="currentColor"
             strokeWidth={strokeWidth}
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
           <path
@@ -115,6 +119,7 @@ function Icon({
             stroke="currentColor"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       );
@@ -126,18 +131,21 @@ function Icon({
             d="M5 4H17L20 7V20H5V4Z"
             stroke="currentColor"
             strokeWidth={strokeWidth}
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
           <path
             d="M8 4V10H16V4"
             stroke="currentColor"
             strokeWidth={strokeWidth}
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
           <path
             d="M8 20V14H17V20"
             stroke="currentColor"
             strokeWidth={strokeWidth}
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
         </svg>
@@ -218,6 +226,53 @@ function Icon({
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
+          />
+        </svg>
+      );
+
+    case 'coffee':
+      return (
+        <svg {...common}>
+          <path
+            d="M18 8h1a4 4 0 0 1 0 8h-1"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <line
+            x1="6"
+            y1="1"
+            x2="6"
+            y2="4"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+          <line
+            x1="10"
+            y1="1"
+            x2="10"
+            y2="4"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+          />
+          <line
+            x1="14"
+            y1="1"
+            x2="14"
+            y2="4"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
           />
         </svg>
       );
@@ -492,31 +547,63 @@ export default function HomeScreen({
             </div>
           </div>
 
-          <div
-            style={{
-              display: isPortrait ? 'none' : 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 12px',
-              borderRadius: 20,
-              background: 'rgba(8, 12, 28, 0.65)',
-              border: '1px solid rgba(110, 130, 220, 0.16)',
-              color: '#8290b4',
-              fontSize: 10,
-              fontWeight: 700
-            }}
-          >
-            <span
+          {/* LADO DERECHO: KO-FI Y ESTADO */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* BOTÓN KO-FI */}
+            <a
+              href="https://ko-fi.com/thejoirent"
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseEnter={() => setHovered('kofi')}
+              onMouseLeave={() => setHovered(null)}
               style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: '#35e99a',
-                boxShadow:
-                  '0 0 10px rgba(53, 233, 154, 0.7)'
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: isPortrait ? '7px 11px' : '8px 14px',
+                borderRadius: 20,
+                background: hovered === 'kofi' ? 'rgba(255, 95, 95, 0.22)' : 'rgba(255, 95, 95, 0.12)',
+                border: `1px solid ${hovered === 'kofi' ? 'rgba(255, 120, 120, 0.65)' : 'rgba(255, 95, 95, 0.35)'}`,
+                color: '#ff8a8a',
+                fontSize: isPortrait ? 10 : 11,
+                fontWeight: 800,
+                letterSpacing: 0.5,
+                textDecoration: 'none',
+                transition: 'all 150ms ease',
+                transform: hovered === 'kofi' ? 'translateY(-1px)' : 'translateY(0)',
+                boxShadow: hovered === 'kofi' ? '0 0 15px rgba(255, 95, 95, 0.25)' : 'none'
               }}
-            />
-            PROYECTO LISTO
+            >
+              <Icon name="coffee" size={14} />
+              <span>{isPortrait ? 'KO-FI' : 'APOYAR EN KO-FI'}</span>
+            </a>
+
+            {/* BADGE ESTADO (Visible en Desktop) */}
+            <div
+              style={{
+                display: isPortrait ? 'none' : 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 20,
+                background: 'rgba(8, 12, 28, 0.65)',
+                border: '1px solid rgba(110, 130, 220, 0.16)',
+                color: '#8290b4',
+                fontSize: 10,
+                fontWeight: 700
+              }}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: '#35e99a',
+                  boxShadow: '0 0 10px rgba(53, 233, 154, 0.7)'
+                }}
+              />
+              PROYECTO LISTO
+            </div>
           </div>
         </header>
 
