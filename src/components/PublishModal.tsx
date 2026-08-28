@@ -1,100 +1,184 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNovel } from '../context/NovelContext';
 
-export default function PublishModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { user, profile } = useAuth();
+interface PublishModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function PublishModal({ isOpen, onClose }: PublishModalProps) {
+  const { user, profile, loginWithGoogle } = useAuth();
   const { project, setProject } = useNovel();
-  const [allowDownload, setAllowDownload] = useState(Boolean(project.allowCommunityEdit));
+
+  const [title, setTitle] = useState(project.title || '');
   const [description, setDescription] = useState(project.description || '');
-  const [publishing, setPublishing] = useState(false);
+  const [tagsInput, setTagsInput] = useState('');
+  const [isNsfw, setIsNsfw] = useState(false);
+  const [allowCommunityEdit, setAllowCommunityEdit] = useState(project.allowCommunityEdit ?? true);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   if (!isOpen) return null;
 
-  const handlePublish = async () => {
-    if (!user || !profile) {
-      alert('Debes iniciar sesión para publicar tu novela.');
-      return;
-    }
-    setPublishing(true);
+  const handlePublish = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return alert('Debes iniciar sesión para publicar tu novela.');
+    if (!title.trim()) return alert('La novela debe tener un título.');
 
+    const cover = project.backgroundGallery?.[0]?.url || project.chapters[0]?.scenes[0]?.backgroundUrl || '';
+
+    const parsedTags = tagsInput
+      .split(',')
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
+
+    const projectToPublish = {
+      ...project,
+      title: title.trim(),
+      description: description.trim(),
+      allowCommunityEdit
+    };
+
+    setIsPublishing(true);
     try {
-      const updatedProject = {
-        ...project,
-        description,
-        allowCommunityEdit: allowDownload,
-        isPublic: true,
-        updatedAt: Date.now()
-      };
-
-      setProject(updatedProject);
-
-      await addDoc(collection(db, 'novels'), {
-        title: project.title || 'Novela sin título',
-        description,
+      await addDoc(collection(db, 'community_novels'), {
+        title: title.trim(),
+        description: description.trim(),
+        coverUrl: cover,
+        tags: parsedTags,
+        isNsfw,
+        authorName: profile?.displayName || user.displayName || 'Creador',
         authorId: user.uid,
-        authorName: profile.displayName || 'Autor anónimo',
-        authorAvatar: profile.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`,
-        allowDownload,
-        allowCommunityEdit: allowDownload,
-        projectData: JSON.stringify(updatedProject),
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        allowCommunityEdit,
+        projectData: projectToPublish
       });
 
-      alert('¡Novela publicada en la comunidad exitosamente!');
+      setProject(projectToPublish);
+      alert('¡Novela publicada en la comunidad con éxito!');
       onClose();
-    } catch (err) {
-      console.error('Error al publicar en Firestore:', err);
-      alert('Error al publicar la novela en Firestore.');
+    } catch (err: any) {
+      console.error('Error al publicar novela:', err);
+      alert(`Error al publicar: ${err.message || 'Verifica el tamaño de tu proyecto.'}`);
     } finally {
-      setPublishing(false);
+      setIsPublishing(false);
     }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#12121c', border: '1px solid #2d2d42', borderRadius: 12, padding: 20, width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 14, color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong style={{ fontSize: 16 }}>🚀 Publicar en la Comunidad</strong>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: 16 }}>✕</button>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(5, 5, 10, 0.85)',
+        backdropFilter: 'blur(8px)',
+        zIndex: 250,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 12
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#11111a',
+          border: '1px solid rgba(168, 85, 247, 0.4)',
+          borderRadius: 16,
+          width: '100%',
+          maxWidth: 480,
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
+          overflow: 'hidden',
+          color: '#fff'
+        }}
+      >
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #222233', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#090910' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>🚀</span>
+            <strong style={{ fontSize: 14 }}>Publicar Novela en la Comunidad</strong>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#999', fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
 
-        <div>
-          <label style={{ fontSize: 12, color: '#aaa' }}>Descripción / Sinopsis:</label>
-          <textarea 
-            rows={3} 
-            value={description} 
-            onChange={e => setDescription(e.target.value)} 
-            placeholder="¿De qué trata tu historia?..."
-            style={{ width: '100%', background: '#0a0a0f', border: '1px solid #333', borderRadius: 6, color: '#fff', padding: 8, marginTop: 4, boxSizing: 'border-box' }}
-          />
-        </div>
-
-        <div style={{ background: '#1a1a27', padding: 12, borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 6, border: '1px solid #29293d' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-            <input 
-              type="checkbox" 
-              checked={allowDownload} 
-              onChange={e => setAllowDownload(e.target.checked)} 
+        <form onSubmit={handlePublish} style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 3 }}>Título de la historia:</label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Mi Novela Visual..."
+              style={{ width: '100%', padding: 8, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 12, boxSizing: 'border-box' }}
+              required
             />
-            Permitir Edición y Descarga (.JSON)
-          </label>
-          <span style={{ fontSize: 11, color: allowDownload ? '#4ade80' : '#f87171' }}>
-            {allowDownload 
-              ? '✓ Los lectores podrán editar, remixar y guardar este proyecto en su biblioteca.' 
-              : '🔒 Bloqueado: Los lectores solo podrán jugarlo en línea y guardar partidas.'}
-          </span>
-        </div>
+          </div>
 
-        <button
-          onClick={handlePublish}
-          disabled={publishing}
-          style={{ padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}
-        >
-          {publishing ? 'Publicando...' : 'Publicar Ahora'}
-        </button>
+          <div>
+            <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 3 }}>Sinopsis / Resumen:</label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="¿De qué trata tu aventura?..."
+              rows={3}
+              style={{ width: '100%', padding: 8, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 11, boxSizing: 'border-box' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 3 }}>Etiquetas (separadas por coma):</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={e => setTagsInput(e.target.value)}
+              placeholder="Romance, Misterio, Fantasía, Anime..."
+              style={{ width: '100%', padding: 8, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 11, boxSizing: 'border-box' }}
+            />
+          </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#fda4af', cursor: 'pointer', background: 'rgba(244,63,94,0.1)', padding: '8px 10px', borderRadius: 6, border: '1px solid rgba(244,63,94,0.3)' }}>
+            <input
+              type="checkbox"
+              checked={isNsfw}
+              onChange={e => setIsNsfw(e.target.checked)}
+              style={{ accentColor: '#f43f5e' }}
+            />
+            Marcar como Novela para Adultos (+18 / NSFW)
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#94a3b8', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={allowCommunityEdit}
+              onChange={e => setAllowCommunityEdit(e.target.checked)}
+              style={{ accentColor: '#38bdf8' }}
+            />
+            Permitir que otros usuarios descarguen y editen mi proyecto
+          </label>
+
+          {!user ? (
+            <button
+              type="button"
+              onClick={loginWithGoogle}
+              style={{ padding: 10, background: '#ea4335', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer', marginTop: 6 }}
+            >
+              Inicia sesión con Google para Publicar
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isPublishing}
+              style={{ padding: 10, background: '#10b981', color: '#042f1f', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginTop: 6 }}
+            >
+              {isPublishing ? 'Publicando...' : 'Publicar Novela'}
+            </button>
+          )}
+        </form>
       </div>
     </div>
   );
