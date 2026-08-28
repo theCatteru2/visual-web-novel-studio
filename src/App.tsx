@@ -8,7 +8,7 @@ import CharacterTreeModal from './components/CharacterTreeModal';
 import PublishModal from './components/PublishModal';
 import CommunityFeed from './components/CommunityFeed';
 import HomeScreen from './components/HomeScreen';
-import UserProfileView from './components/UserProfileView'; // 👈 Nuevo componente
+import UserProfileView from './components/UserProfileView'; 
 
 function MainStudio() {
   const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile'>('home');
