@@ -67,3 +67,18 @@
 
 
 * **🌐 Publicar en la Comunidad:** Sube tu novela a la galería pública para que otros usuarios puedan jugarla en línea o descargarla si habilitas el permiso.
+
+
+## 🎨 Créditos de Assets / Assets Credits
+
+Los assets predeterminados incluidos como plantilla y demostración son obra de **Noraneko Games** (@NoranekoGames):
+
+* **Fondos (Backgrounds)**: [Yume Backgrounds](https://noranekogames.itch.io/yumebackground) por Noraneko Games.
+* **Sprite de Chie**: [Chie - Free Character Sprite](https://noranekogames.itch.io/chie-free-character-sprite) por Noraneko Games.
+* **Sprite de Sumi**: [Sumi - Free Character Sprite](https://noranekogames.itch.io/sumifreecharactersprite) por Noraneko Games.
+
+### Términos de Uso de los Assets / Assets Terms of Use:
+* No pueden ser revendidos por separado ni dentro ni fuera de ningún proyecto.
+* Prohibido su uso en o para NFTs.
+* **Restricción de IA:** Ninguno de los recursos de Noraneko Games puede ser utilizado con Inteligencia Artificial de ninguna forma (incluyendo, pero no limitado a: entrenamiento, retoque o emparejamiento con IA).
+* Para más detalles sobre la licencia y términos completos, visita las páginas oficiales de [Noraneko Games en itch.io](https://noranekogames.itch.io/).
