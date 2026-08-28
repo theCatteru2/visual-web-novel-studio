@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, where, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -17,7 +17,9 @@ export default function UserProfileView({ onBackToFeed, onPlayNovel }: UserProfi
   const [myNovels, setMyNovels] = useState<CommunityNovel[]>([]);
   const [loading, setLoading] = useState(false);
   const [displayNameInput, setDisplayNameInput] = useState(profile?.displayName || '');
-  const [isSavingName, setIsSavingName] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatarUrl || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchMyNovels = async () => {
     if (!user) return;
@@ -41,24 +43,77 @@ export default function UserProfileView({ onBackToFeed, onPlayNovel }: UserProfi
     if (user) {
       fetchMyNovels();
       setDisplayNameInput(profile?.displayName || user.displayName || '');
+      setAvatarUrl(profile?.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`);
     }
   }, [user, profile]);
 
-  const handleUpdateName = async (e: React.FormEvent) => {
+  // Compresión y conversión del avatar a Base64 ligero
+  const compressAvatar = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 180;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject('No se pudo procesar la imagen');
+
+        // Recorte centrado
+        const minDim = Math.min(img.width, img.height);
+        const startX = (img.width - minDim) / 2;
+        const startY = (img.height - minDim) / 2;
+
+        ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/webp', 0.8));
+      };
+
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    try {
+      const base64 = await compressAvatar(file);
+      setAvatarUrl(base64);
+      await updateDoc(doc(db, 'users', user.uid), {
+        avatarUrl: base64
+      });
+      alert('Foto de perfil actualizada.');
+    } catch (err) {
+      console.error('Error al actualizar avatar:', err);
+      alert('Hubo un error al cambiar la foto de perfil.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !displayNameInput.trim()) return;
 
-    setIsSavingName(true);
+    setIsSaving(true);
     try {
       await updateDoc(doc(db, 'users', user.uid), {
-        displayName: displayNameInput.trim()
+        displayName: displayNameInput.trim(),
+        avatarUrl
       });
-      alert('Nombre de perfil actualizado con éxito.');
+      alert('Perfil guardado con éxito.');
     } catch (e) {
       console.error(e);
-      alert('Error al actualizar nombre.');
+      alert('Error al guardar datos del perfil.');
     } finally {
-      setIsSavingName(false);
+      setIsSaving(false);
     }
   };
 
@@ -118,16 +173,50 @@ export default function UserProfileView({ onBackToFeed, onPlayNovel }: UserProfi
 
       <div style={{ maxWidth: 800, width: '100%', margin: '0 auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         
-        {/* Tarjeta de Datos de Usuario */}
-        <div style={{ background: '#141420', border: '1px solid #28283d', borderRadius: 16, padding: 20, display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
-          <img
-            src={profile?.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`}
-            alt="Avatar"
-            style={{ width: 70, height: 70, borderRadius: '50%', border: '2px solid #a855f7' }}
-          />
+        {/* Tarjeta de Datos de Usuario y Foto */}
+        <div style={{ background: '#141420', border: '1px solid #28283d', borderRadius: 16, padding: 20, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          
+          {/* Contenedor de Avatar con botón para cambiar foto */}
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <img
+              src={avatarUrl}
+              alt="Avatar"
+              style={{ width: 80, height: 80, borderRadius: '50%', border: '2px solid #a855f7', objectFit: 'cover' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                background: '#a855f7',
+                border: '2px solid #141420',
+                borderRadius: '50%',
+                width: 26,
+                height: 26,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: 12,
+                color: '#fff'
+              }}
+              title="Cambiar foto de perfil"
+            >
+              📷
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleAvatarFileChange}
+              accept="image/*"
+              style={{ display: 'none' }}
+            />
+          </div>
 
           <div style={{ flex: 1, minWidth: 220 }}>
-            <form onSubmit={handleUpdateName} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <form onSubmit={handleUpdateProfile} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 type="text"
                 value={displayNameInput}
@@ -137,14 +226,14 @@ export default function UserProfileView({ onBackToFeed, onPlayNovel }: UserProfi
               />
               <button
                 type="submit"
-                disabled={isSavingName}
+                disabled={isSaving}
                 style={{ padding: '6px 12px', background: '#a855f7', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
               >
-                {isSavingName ? 'Guardando...' : 'Cambiar'}
+                {isSaving ? 'Guardando...' : 'Guardar Nombre'}
               </button>
             </form>
 
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
               UID: {user.uid}
             </div>
             <div style={{ fontSize: 11, color: '#38bdf8', marginTop: 2 }}>
