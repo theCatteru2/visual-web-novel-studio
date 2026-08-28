@@ -150,20 +150,21 @@ export default function PlayerView() {
     }
   };
 
-  const getAnimationKeyframes = (anim: CharacterAnimation | undefined) => {
+    const getAnimationKeyframes = (anim: CharacterAnimation | undefined) => {
     switch (anim) {
       case 'bounce':
-        return 'jumpAnim 0.4s ease-out';
+        return 'jumpAnim 0.4s ease-out 0.2s backwards';
       case 'shake':
-        return 'shakeAnim 0.3s ease-in-out';
+        return 'shakeAnim 0.3s ease-in-out 0.2s backwards';
       case 'fade_in':
-        return 'fadeInAnim 0.5s ease-out';
+        return 'fadeInAnim 0.5s ease-out 0.2s backwards';
       case 'slide_in':
-        return 'slideInAnim 0.4s ease-out';
+        return 'slideInAnim 0.4s ease-out 0.2s backwards';
       default:
         return 'none';
     }
   };
+
 
   return (
     <div 
@@ -373,7 +374,6 @@ export default function PlayerView() {
         </div>
 
         {/* Personajes en Escena */}
-        {/* Personajes en Escena */}
 {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
   const charDef = project.characters[inst.characterId];
   if (!charDef) return null;
@@ -402,14 +402,21 @@ export default function PlayerView() {
       }}
     >
       <img 
+        key={`${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
         src={resolvedSprite} 
         alt={charDef.name}
         draggable={false}
-        style={{ height: '100%', width: 'auto', objectFit: 'contain' }}
+        style={{ 
+          height: '100%', 
+          width: 'auto', 
+          objectFit: 'contain',
+          animation: getAnimationKeyframes(inst.animation)
+        }}
       />
     </div>
   );
 })}
+
 
 
         {/* Decisiones */}
