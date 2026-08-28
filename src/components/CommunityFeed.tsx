@@ -1,364 +1,319 @@
-import { useEffect, useState, useRef } from 'react';
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  getDocs, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
-  getDoc, 
-  where,
-  updateDoc 
-} from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { collection, getDocs, deleteDoc, doc, addDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNovel } from '../context/NovelContext';
+import { CommunityNovel } from '../types';
 
-export default function CommunityFeed({ onPlayNovel, defaultTab = 'explore' }: { onPlayNovel: () => void; defaultTab?: 'explore' | 'following' | 'my_profile' }) {
-  const { user } = useAuth();
-  const { setProject, startPlaytest, importCommunityNovelToLibrary } = useNovel();
+interface CommunityFeedProps {
+  onPlayNovel: () => void;
+}
 
-  const [activeTab, setActiveTab] = useState<'explore' | 'following' | 'my_profile'>(defaultTab);
-  const [novels, setNovels] = useState<any[]>([]);
-  const [followingIds, setFollowingIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+const NOVEL_TAGS = ['Romance', 'Fantasía', 'Misterio', 'Drama', 'Comedia', 'Terror', 'Sci-Fi', 'Aventura', 'Escolar', 'Isekai'];
 
-  // Perfil que se está visualizando
-  const [viewedProfile, setViewedProfile] = useState<any | null>(null);
-  const [isFollowingCurrent, setIsFollowingCurrent] = useState(false);
+export default function CommunityFeed({ onPlayNovel }: CommunityFeedProps) {
+  const { user, profile } = useAuth();
+  const { setProject, importCommunityNovelToLibrary, startPlaytest } = useNovel();
 
-  // Estados de edición del perfil propio
-  const [editDisplayName, setEditDisplayName] = useState('');
-  const [editBio, setEditBio] = useState('');
-  const [editAvatarUrl, setEditAvatarUrl] = useState('');
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [novels, setNovels] = useState<CommunityNovel[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Filtros
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTag, setSelectedTag] = useState<string>('todos');
+  const [showNsfw, setShowNsfw] = useState<boolean>(() => {
+    return localStorage.getItem('vwn_show_nsfw_novels') === 'true';
+  });
 
-  const fetchNovelsAndFollows = async () => {
+  const fetchNovels = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'novels'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, 'community_novels'), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as CommunityNovel));
       setNovels(list);
-
-      if (user) {
-        const followQ = query(collection(db, 'follows'), where('followerId', '==', user.uid));
-        const followSnap = await getDocs(followQ);
-        const ids = followSnap.docs.map(d => d.data().targetId);
-        setFollowingIds(ids);
-      }
-    } catch (err) {
-      console.error('Error al cargar datos:', err);
+    } catch (e) {
+      console.error('Error al cargar novelas comunitarias:', e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchNovelsAndFollows();
-  }, [user]);
+    fetchNovels();
+  }, []);
 
-  const openUserProfile = async (userId: string) => {
-    try {
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setViewedProfile(data);
-        setEditDisplayName(data.displayName || '');
-        setEditBio(data.bio || '');
-        setEditAvatarUrl(data.avatarUrl || '');
+  const toggleNsfwSetting = () => {
+    const nextVal = !showNsfw;
+    setShowNsfw(nextVal);
+    localStorage.setItem('vwn_show_nsfw_novels', String(nextVal));
+  };
 
-        if (user) {
-          setIsFollowingCurrent(followingIds.includes(userId));
-        }
-      }
-    } catch (err) {
-      console.error('Error al abrir perfil:', err);
+  const filteredNovels = novels.filter(n => {
+    if (!showNsfw && n.isNsfw) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = n.title?.toLowerCase().includes(q);
+      const matchDesc = n.description?.toLowerCase().includes(q);
+      const matchAuthor = n.authorName?.toLowerCase().includes(q);
+      const matchId = n.id?.toLowerCase().includes(q);
+      const matchTag = n.tags?.some(t => t.toLowerCase().includes(q));
+      if (!matchTitle && !matchDesc && !matchAuthor && !matchId && !matchTag) return false;
     }
-  };
 
-  const handleToggleFollow = async (targetId: string) => {
-    if (!user) return alert('Debes iniciar sesión para seguir creadores.');
-    const followDocId = `${user.uid}_${targetId}`;
-    const followRef = doc(db, 'follows', followDocId);
-
-    try {
-      if (isFollowingCurrent) {
-        await deleteDoc(followRef);
-        setFollowingIds(prev => prev.filter(id => id !== targetId));
-        setIsFollowingCurrent(false);
-      } else {
-        await setDoc(followRef, { followerId: user.uid, targetId, createdAt: Date.now() });
-        setFollowingIds(prev => [...prev, targetId]);
-        setIsFollowingCurrent(true);
-      }
-    } catch (err) {
-      console.error('Error al actualizar seguimiento:', err);
+    if (selectedTag !== 'todos') {
+      if (!n.tags || !n.tags.includes(selectedTag)) return false;
     }
-  };
 
-  const handleAvatarFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (typeof event.target?.result === 'string') {
-        setEditAvatarUrl(event.target.result);
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const handleSaveMyProfile = async () => {
-    if (!user) return;
-    setIsSavingProfile(true);
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      const updatedData = {
-        displayName: editDisplayName.trim() || 'Creador',
-        bio: editBio.trim(),
-        avatarUrl: editAvatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`
-      };
-
-      await updateDoc(userRef, updatedData);
-      setViewedProfile((prev: any) => ({
-        ...prev,
-        ...updatedData
-      }));
-      alert('¡Perfil y foto actualizados con éxito!');
-    } catch (err) {
-      console.error(err);
-      alert('Error al guardar los cambios del perfil.');
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-
-  const handlePlay = (novel: any) => {
-    try {
-      const parsed = JSON.parse(novel.projectData);
-      
-      // Se registra y guarda automáticamente en el estante de la comunidad
-      importCommunityNovelToLibrary(
-        parsed,
-        novel.authorName || 'Autor de la Comunidad',
-        novel.authorId || '',
-        Boolean(novel.allowCommunityEdit || novel.allowDownload)
-      );
-
-      setProject(parsed);
-      startPlaytest();
-      onPlayNovel();
-    } catch (err) {
-      console.error('Error al parsear el proyecto:', err);
-      alert('Error al cargar la novela.');
-    }
-  };
-
-  const handleDownload = (novel: any) => {
-    if (!novel.allowDownload && !novel.allowCommunityEdit) return;
-    const blob = new Blob([novel.projectData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${novel.title}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const displayedNovels = novels.filter(n => {
-    if (viewedProfile) return n.authorId === viewedProfile.uid;
-    if (activeTab === 'following') return followingIds.includes(n.authorId);
-    if (activeTab === 'my_profile' && user) return n.authorId === user.uid;
     return true;
   });
 
+  const handlePlayDirectly = (novel: CommunityNovel) => {
+    setProject(novel.projectData);
+    startPlaytest();
+    onPlayNovel();
+  };
+
+  const handleImportToLibrary = (novel: CommunityNovel) => {
+    importCommunityNovelToLibrary(
+      novel.projectData,
+      novel.authorName,
+      novel.authorId,
+      novel.allowCommunityEdit
+    );
+    alert(`¡"${novel.title}" guardada en tu biblioteca!`);
+  };
+
+  const handleDeleteNovel = async (novelId: string, novelTitle: string) => {
+    if (!window.confirm(`¿Eliminar permanentemente "${novelTitle}" (ID: ${novelId}) de la comunidad?`)) return;
+
+    try {
+      await deleteDoc(doc(db, 'community_novels', novelId));
+      setNovels(prev => prev.filter(n => n.id !== novelId));
+      alert('Novela eliminada.');
+    } catch (err) {
+      console.error('Error al eliminar novela:', err);
+      alert('Error al intentar eliminar la novela.');
+    }
+  };
+
+  const handleReportNovel = async (novel: CommunityNovel) => {
+    if (!user) return alert('Debes iniciar sesión para reportar una historia.');
+
+    const reason = window.prompt(`Reportar novela: "${novel.title}" (ID: ${novel.id})\nIndica el motivo del reporte:`);
+    if (!reason || !reason.trim()) return;
+
+    try {
+      await addDoc(collection(db, 'novel_reports'), {
+        novelId: novel.id,
+        novelTitle: novel.title,
+        novelAuthorId: novel.authorId,
+        reportedByUserId: user.uid,
+        reportedByUserName: profile?.displayName || user.displayName || 'Usuario',
+        reason: reason.trim(),
+        createdAt: Date.now()
+      });
+      alert('Reporte enviado a moderación.');
+    } catch (e) {
+      console.error(e);
+      alert('No se pudo enviar el reporte.');
+    }
+  };
+
+  const copyNovelId = (id: string) => {
+    navigator.clipboard.writeText(id);
+    alert(`ID copiado al portapapeles: ${id}`);
+  };
+
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 48px)', background: '#09090e', color: '#fff', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-      
-      {/* Barra de Pestañas Superior */}
-      <div style={{ display: 'flex', gap: 6, padding: '10px 16px', background: '#11111a', borderBottom: '1px solid #1f1f2e', alignItems: 'center' }}>
-        <button
-          onClick={() => { setViewedProfile(null); setActiveTab('explore'); }}
-          style={{ padding: '6px 14px', background: activeTab === 'explore' && !viewedProfile ? '#2563eb' : 'transparent', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-        >
-          🌐 Explorar
-        </button>
-        {user && (
-          <>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#09090e', color: '#fff', boxSizing: 'border-box' }}>
+      {/* Barra de Filtros y Búsqueda */}
+      <div style={{ padding: '10px 16px', background: '#11111a', borderBottom: '1px solid #1f1f2e', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 18 }}>🌐</span>
+            <strong style={{ fontSize: 15 }}>Explorar Historias de la Comunidad</strong>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: showNsfw ? '#f43f5e' : '#aaa' }}>
+              <input
+                type="checkbox"
+                checked={showNsfw}
+                onChange={toggleNsfwSetting}
+                style={{ accentColor: '#f43f5e', cursor: 'pointer' }}
+              />
+              🔞 Ver +18
+            </label>
+
             <button
-              onClick={() => { setViewedProfile(null); setActiveTab('following'); }}
-              style={{ padding: '6px 14px', background: activeTab === 'following' && !viewedProfile ? '#2563eb' : 'transparent', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              onClick={fetchNovels}
+              style={{ padding: '4px 10px', background: '#1e293b', border: '1px solid #334155', color: '#38bdf8', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
             >
-              👥 Siguiendo ({followingIds.length})
+              🔄 Actualizar
             </button>
+          </div>
+        </div>
+
+        {/* Buscador */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="🔍 Buscar por título, descripción, autor, ID o etiqueta..."
+            style={{ flex: 1, background: '#161622', border: '1px solid #333', borderRadius: 6, color: '#fff', padding: '6px 12px', fontSize: 12 }}
+          />
+          {searchQuery && (
             <button
-              onClick={() => {
-                if (user) {
-                  openUserProfile(user.uid);
-                  setActiveTab('my_profile');
-                }
+              onClick={() => setSearchQuery('')}
+              style={{ background: '#333', border: 'none', borderRadius: 6, color: '#aaa', padding: '0 10px', cursor: 'pointer', fontSize: 11 }}
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+
+        {/* Tags */}
+        <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
+          <button
+            onClick={() => setSelectedTag('todos')}
+            style={{
+              padding: '3px 10px',
+              background: selectedTag === 'todos' ? '#38bdf8' : 'rgba(255,255,255,0.06)',
+              color: selectedTag === 'todos' ? '#000' : '#888',
+              border: 'none',
+              borderRadius: 12,
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Todos
+          </button>
+          {NOVEL_TAGS.map(t => (
+            <button
+              key={t}
+              onClick={() => setSelectedTag(t)}
+              style={{
+                padding: '3px 10px',
+                background: selectedTag === t ? '#38bdf8' : 'rgba(255,255,255,0.06)',
+                color: selectedTag === t ? '#000' : '#aaa',
+                border: 'none',
+                borderRadius: 12,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
               }}
-              style={{ padding: '6px 14px', background: activeTab === 'my_profile' ? '#7c3aed' : 'transparent', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
             >
-              👤 Mi Perfil
+              #{t}
             </button>
-          </>
-        )}
+          ))}
+        </div>
       </div>
 
+      {/* Lista de Novelas */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {/* VISTA DE PERFIL DE USUARIO */}
-        {viewedProfile && (
-          <div style={{ background: '#12121c', border: '1px solid #28283d', borderRadius: 12, padding: 16, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                <img 
-                  src={(user && user.uid === viewedProfile.uid && editAvatarUrl) ? editAvatarUrl : (viewedProfile.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${viewedProfile.uid}`)} 
-                  alt="" 
-                  style={{ width: 68, height: 68, borderRadius: '50%', border: '2px solid #38bdf8', objectFit: 'cover' }} 
-                />
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 18, color: '#f3f4f6' }}>{viewedProfile.displayName || 'Creador'}</h2>
-                  <span style={{ fontSize: 11, color: '#a855f7' }}>ID: {viewedProfile.uid.slice(0, 8)}...</span>
-                  <p style={{ margin: '6px 0 0 0', fontSize: 13, color: '#bbb' }}>{viewedProfile.bio || 'Sin descripción todavía.'}</p>
-                </div>
-              </div>
-
-              {/* Botón Seguir / Indicador de Cuenta */}
-              <div>
-                {user && user.uid === viewedProfile.uid ? (
-                  <div style={{ fontSize: 12, color: '#10b981', fontWeight: 700, background: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: 6, border: '1px solid #10b98144' }}>
-                    Tu Cuenta
-                  </div>
-                ) : user ? (
-                  <button
-                    onClick={() => handleToggleFollow(viewedProfile.uid)}
-                    style={{ padding: '6px 14px', background: isFollowingCurrent ? '#374151' : '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {isFollowingCurrent ? 'Siguiendo ✓' : '+ Seguir'}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            {/* Formulario de edición rápida si es el dueño */}
-            {user && user.uid === viewedProfile.uid && (
-              <div style={{ borderTop: '1px solid #222233', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <strong style={{ fontSize: 12, color: '#38bdf8' }}>✏️ Configurar Mi Perfil:</strong>
-                
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    accept="image/*" 
-                    onChange={handleAvatarFileUpload} 
-                    style={{ display: 'none' }} 
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{ padding: '6px 12px', background: '#1e293b', color: '#38bdf8', border: '1px solid #3334155', borderRadius: 6, fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
-                  >
-                    📷 Cambiar Foto de Perfil
-                  </button>
-                  <span style={{ fontSize: 11, color: '#666' }}>O ingresa una URL:</span>
-                  <input 
-                    type="text"
-                    value={editAvatarUrl}
-                    onChange={e => setEditAvatarUrl(e.target.value)}
-                    placeholder="https://ejemplo.com/mi-avatar.png"
-                    style={{ flex: 1, minWidth: 200, padding: 6, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 11 }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input 
-                    type="text"
-                    value={editDisplayName}
-                    onChange={e => setEditDisplayName(e.target.value)}
-                    placeholder="Tu nombre de autor"
-                    style={{ flex: 1, padding: 6, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 12 }}
-                  />
-                  <input 
-                    type="text"
-                    value={editBio}
-                    onChange={e => setEditBio(e.target.value)}
-                    placeholder="Biografía corta"
-                    style={{ flex: 2, padding: 6, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 12 }}
-                  />
-                  <button 
-                    onClick={handleSaveMyProfile}
-                    disabled={isSavingProfile}
-                    style={{ padding: '6px 14px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {isSavingProfile ? 'Guardando...' : 'Guardar'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* CATÁLOGO DE NOVELAS */}
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>
-          {viewedProfile 
-            ? `Novelas de ${viewedProfile.displayName} (${displayedNovels.length})` 
-            : activeTab === 'following' 
-            ? 'Novelas de autores que sigues' 
-            : 'Novelas Publicadas'}
-        </h3>
-
         {loading ? (
-          <div style={{ color: '#777', fontSize: 13 }}>Cargando creaciones...</div>
-        ) : displayedNovels.length === 0 ? (
-          <div style={{ background: '#12121c', border: '1px dashed #333', padding: 24, textAlign: 'center', borderRadius: 10, color: '#777', fontSize: 13 }}>
-            No hay novelas publicadas en esta sección.
+          <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Cargando historias...</div>
+        ) : filteredNovels.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, color: '#666', fontSize: 13 }}>
+            No se encontraron novelas con los filtros actuales.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-            {displayedNovels.map(novel => (
-              <div key={novel.id} style={{ background: '#12121c', border: '1px solid #242436', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 10 }}>
-                <div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: 16, color: '#38bdf8' }}>{novel.title}</h4>
-                  <div 
-                    onClick={() => openUserProfile(novel.authorId)}
-                    style={{ fontSize: 12, color: '#a855f7', cursor: 'pointer', marginBottom: 8, textDecoration: 'underline' }}
-                  >
-                    Por: {novel.authorName}
-                  </div>
-                  <p style={{ fontSize: 12, color: '#bbb', margin: 0, lineHeight: 1.4 }}>{novel.description || 'Sin descripción.'}</p>
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14, maxWidth: 1200, margin: '0 auto' }}>
+            {filteredNovels.map(novel => {
+              const isMyNovel = user && (novel.authorId === user.uid || profile?.role === 'admin');
 
-                <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
-                  <button 
-                    onClick={() => handlePlay(novel)}
-                    style={{ flex: 1, padding: '8px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    ▶️ Jugar
-                  </button>
-
-                  {(novel.allowDownload || novel.allowCommunityEdit) ? (
-                    <button 
-                      onClick={() => handleDownload(novel)}
-                      style={{ padding: '8px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                      title="Descargar archivo JSON"
+              return (
+                <div key={novel.id} style={{ position: 'relative', background: '#13131e', border: `1px solid ${novel.isNsfw ? '#f43f5e55' : '#222233'}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                  
+                  {/* Acciones Superiores */}
+                  <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 4, zIndex: 10 }}>
+                    <button
+                      onClick={() => handleReportNovel(novel)}
+                      style={{ background: 'rgba(15, 15, 20, 0.85)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 4, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11 }}
+                      title="Reportar historia"
                     >
-                      ⬇️ Descargar
+                      🚩
                     </button>
-                  ) : (
-                    <span style={{ fontSize: 11, color: '#6b7280', padding: '0 6px' }}>
-                      🔒 Solo Juego
+
+                    {isMyNovel && (
+                      <button
+                        onClick={() => handleDeleteNovel(novel.id, novel.title)}
+                        style={{ background: 'rgba(239, 68, 68, 0.9)', color: '#fff', border: 'none', borderRadius: 4, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11 }}
+                        title="Eliminar mi historia"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
+
+                  {novel.isNsfw && (
+                    <span style={{ position: 'absolute', top: 6, left: 6, background: '#f43f5e', color: '#fff', fontSize: 8, fontWeight: 900, padding: '2px 6px', borderRadius: 4, zIndex: 10 }}>
+                      +18
                     </span>
                   )}
+
+                  {novel.coverUrl ? (
+                    <img src={novel.coverUrl} alt={novel.title} style={{ width: '100%', height: 125, objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ height: 125, background: '#090910', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
+                      📖
+                    </div>
+                  )}
+
+                  <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6, flex: 1, justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {novel.title}
+                      </div>
+                      <div style={{ fontSize: 9, color: '#38bdf8' }}>por {novel.authorName}</div>
+                      
+                      <p style={{ fontSize: 10, color: '#94a3b8', margin: '4px 0', lineClamp: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {novel.description || 'Sin descripción disponible.'}
+                      </p>
+
+                      <div 
+                        onClick={() => copyNovelId(novel.id)}
+                        style={{ fontSize: 8, color: '#64748b', cursor: 'pointer' }}
+                        title="Copiar ID de la novela"
+                      >
+                        ID: {novel.id.slice(0, 8)}... 📋
+                      </div>
+
+                      {novel.tags && novel.tags.length > 0 && (
+                        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
+                          {novel.tags.slice(0, 3).map((t, idx) => (
+                            <span key={idx} style={{ fontSize: 8, background: 'rgba(56,189,248,0.15)', color: '#38bdf8', padding: '1px 5px', borderRadius: 3 }}>
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                      <button
+                        onClick={() => handlePlayDirectly(novel)}
+                        style={{ flex: 1, padding: '6px', background: '#10b981', color: '#052e16', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        ▶ Jugar
+                      </button>
+                      <button
+                        onClick={() => handleImportToLibrary(novel)}
+                        style={{ flex: 1, padding: '6px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        📥 Guardar
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
