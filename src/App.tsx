@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { NovelProvider } from './context/NovelContext';
+import { useState, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
+import { NovelProvider, useNovel } from './context/NovelContext';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import TimelineEditor from './components/TimelineEditor';
@@ -8,12 +10,35 @@ import CharacterTreeModal from './components/CharacterTreeModal';
 import PublishModal from './components/PublishModal';
 import CommunityFeed from './components/CommunityFeed';
 import HomeScreen from './components/HomeScreen';
-import UserProfileView from './components/UserProfileView'; 
+import UserProfileView from './components/UserProfileView';
+import MyLibraryView from './components/MyLibraryView';
+import PlaytestPromptModal from './components/PlaytestPromptModal';
 
 function MainStudio() {
-  const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile'>('home');
+  const { setProject, startPlaytest } = useNovel();
+
+  const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile' | 'library'>('home');
   const [isCharTreeOpen, setIsCharTreeOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const [isPlaytestPromptOpen, setIsPlaytestPromptOpen] = useState(false);
+
+  // Soporte para enlaces privados: ?privatePlay=NOVEL_ID
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const privateNovelId = params.get('privatePlay');
+    if (privateNovelId) {
+      getDoc(doc(db, 'user_library', privateNovelId)).then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.projectData) {
+            setProject(data.projectData);
+            startPlaytest(undefined, true);
+            setMode('player');
+          }
+        }
+      }).catch(err => console.error('Error cargando enlace privado:', err));
+    }
+  }, []);
 
   return (
     <div style={{
@@ -30,6 +55,7 @@ function MainStudio() {
         setMode={setMode} 
         onOpenCharacterTree={() => setIsCharTreeOpen(true)}
         onOpenPublishModal={() => setIsPublishOpen(true)}
+        onTriggerEditorPlay={() => setIsPlaytestPromptOpen(true)}
       />
 
       {/* Vistas Principales */}
@@ -37,9 +63,13 @@ function MainStudio() {
         {mode === 'home' && (
           <HomeScreen
             onOpenEditor={() => setMode('editor')}
-            onStartTest={() => setMode('player')}
+            onStartTest={() => {
+              startPlaytest(undefined, true);
+              setMode('player');
+            }}
             onOpenCommunity={() => setMode('community')}
             onOpenProfile={() => setMode('profile')}
+            onOpenLibrary={() => setMode('library')}
           />
         )}
         {mode === 'editor' && <TimelineEditor />}
@@ -56,6 +86,16 @@ function MainStudio() {
             onPlayNovel={() => setMode('player')}
           />
         )}
+        {mode === 'library' && (
+          <MyLibraryView
+            onOpenEditor={() => setMode('editor')}
+            onPlayNovel={() => setMode('player')}
+            onOpenPublishModal={(proj) => {
+              setProject(proj);
+              setIsPublishOpen(true);
+            }}
+          />
+        )}
       </div>
 
       {/* Modales Flotantes */}
@@ -68,6 +108,20 @@ function MainStudio() {
       <PublishModal 
         isOpen={isPublishOpen} 
         onClose={() => setIsPublishOpen(false)} 
+      />
+
+      {/* Modal de Playtest en el Editor */}
+      <PlaytestPromptModal
+        isOpen={isPlaytestPromptOpen}
+        onClose={() => setIsPlaytestPromptOpen(false)}
+        onStartFromCurrent={() => {
+          startPlaytest(undefined, false);
+          setMode('player');
+        }}
+        onStartFromBeginning={() => {
+          startPlaytest(undefined, true);
+          setMode('player');
+        }}
       />
     </div>
   );
