@@ -159,7 +159,7 @@ export default function SaveLoadModal({ isOpen, mode, onClose, onLoaded }: SaveL
 
                     <div style={{ padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ fontSize: 9, color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {slotData.chapterTitle} • {slotData.sceneTitle}
+                        {project.title || 'Novela'} • {slotData.sceneTitle}
                       </span>
                       <span style={{ fontSize: 8, color: '#64748b' }}>
                         {new Date(slotData.timestamp).toLocaleDateString()} {new Date(slotData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

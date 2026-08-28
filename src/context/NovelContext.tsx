@@ -43,6 +43,8 @@ interface NovelContextType {
   addOrUpdateVariable: (variable: CustomVariable) => void;
   deleteVariable: (varName: string) => void;
 
+  deleteBackgroundFromGallery: (bgId: string) => void;
+
   gameState: PlayerGameState;
   setPlayerName: (name: string) => void;
   startPlaytest: (customInitialState?: PlayerGameState) => void;
@@ -52,7 +54,6 @@ interface NovelContextType {
   jumpToBranch: (branchId: string) => void;
   parseTextTokens: (text: string) => string;
 
-  // 👈 Sistema de Biblioteca y Guardados
   library: Record<string, LibraryNovelEntry>;
   saveCurrentProjectToLibrary: () => void;
   loadProjectFromLibrary: (novelId: string) => boolean;
@@ -63,7 +64,7 @@ interface NovelContextType {
   importCommunityNovelToLibrary: (novel: NovelProject, authorName?: string, authorId?: string, allowEdit?: boolean) => string;
 }
 
-const LOCAL_STORAGE_KEY = 'vwn_studio_project_v104_local_bg_and_sprites';
+const LOCAL_STORAGE_KEY = 'vwn_studio_project_v105_scenes_fixed';
 const LIBRARY_STORAGE_KEY = 'vwn_studio_library_v100';
 
 const NovelContext = createContext<NovelContextType | undefined>(undefined);
@@ -93,19 +94,29 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return {};
   });
 
-  const [currentChapterId, setCurrentChapterId] = useState<string>(project.chapters[0]?.id || '');
-  const [currentSceneId, setCurrentSceneId] = useState<string>(project.chapters[0]?.scenes[0]?.id || '');
+  const firstChapterId = project.chapters[0]?.id || '';
+  const firstSceneId = project.chapters[0]?.scenes[0]?.id || '';
+
+  const [currentChapterId, setCurrentChapterId] = useState<string>(firstChapterId);
+  const [currentSceneId, setCurrentSceneId] = useState<string>(firstSceneId);
   const [currentBranchId, setCurrentBranchId] = useState<string>('main');
 
-  const [gameState, setGameState] = useState<PlayerGameState>({
-    currentChapterId: '',
-    currentSceneId: '',
-    currentBranchId: 'main',
-    currentEventIndex: 0,
-    playerName: project.defaultPlayerName || 'Protagonista',
-    runtimeVariables: {},
-    runtimeCharacters: {},
-    history: []
+  const [gameState, setGameState] = useState<PlayerGameState>(() => {
+    const initialVars: Record<string, boolean | number | string> = {};
+    Object.values(project.variables || {}).forEach(v => {
+      initialVars[v.name] = v.defaultValue;
+    });
+
+    return {
+      currentChapterId: firstChapterId,
+      currentSceneId: firstSceneId,
+      currentBranchId: 'main',
+      currentEventIndex: 0,
+      playerName: project.defaultPlayerName || 'Protagonista',
+      runtimeVariables: initialVars,
+      runtimeCharacters: JSON.parse(JSON.stringify(project.characters || {})),
+      history: []
+    };
   });
 
   useEffect(() => {
@@ -131,10 +142,29 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const resetProjectToDefault = () => {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
+    localStorage.removeItem(LIBRARY_STORAGE_KEY);
     setProject(mockProject);
-    setCurrentChapterId(mockProject.chapters[0]?.id || '');
-    setCurrentSceneId(mockProject.chapters[0]?.scenes[0]?.id || '');
+    const defChapId = mockProject.chapters[0]?.id || '';
+    const defSceneId = mockProject.chapters[0]?.scenes[0]?.id || '';
+    setCurrentChapterId(defChapId);
+    setCurrentSceneId(defSceneId);
     setCurrentBranchId('main');
+
+    const initialVars: Record<string, boolean | number | string> = {};
+    Object.values(mockProject.variables || {}).forEach(v => {
+      initialVars[v.name] = v.defaultValue;
+    });
+
+    setGameState({
+      currentChapterId: defChapId,
+      currentSceneId: defSceneId,
+      currentBranchId: 'main',
+      currentEventIndex: 0,
+      playerName: mockProject.defaultPlayerName || 'Protagonista',
+      runtimeVariables: initialVars,
+      runtimeCharacters: JSON.parse(JSON.stringify(mockProject.characters || {})),
+      history: []
+    });
   };
 
   const saveProjectToLocal = () => localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(project));
@@ -154,9 +184,28 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const parsed = JSON.parse(jsonString);
       if (parsed.chapters && parsed.characters) {
         setProject(parsed);
-        setCurrentChapterId(parsed.chapters[0]?.id || '');
-        setCurrentSceneId(parsed.chapters[0]?.scenes[0]?.id || '');
+        const chapId = parsed.chapters[0]?.id || '';
+        const scnId = parsed.chapters[0]?.scenes[0]?.id || '';
+        setCurrentChapterId(chapId);
+        setCurrentSceneId(scnId);
         setCurrentBranchId('main');
+
+        const initialVars: Record<string, boolean | number | string> = {};
+        Object.values(parsed.variables || {}).forEach((v: any) => {
+          initialVars[v.name] = v.defaultValue;
+        });
+
+        setGameState({
+          currentChapterId: chapId,
+          currentSceneId: scnId,
+          currentBranchId: 'main',
+          currentEventIndex: 0,
+          playerName: parsed.defaultPlayerName || 'Protagonista',
+          runtimeVariables: initialVars,
+          runtimeCharacters: JSON.parse(JSON.stringify(parsed.characters || {})),
+          history: []
+        });
+
         return true;
       }
     } catch (e) {
@@ -165,9 +214,14 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return false;
   };
 
-  // -------------------------------------------------------------
-  // BIBLIOTECA & SLOTS DE GUARDADO
-  // -------------------------------------------------------------
+  const deleteBackgroundFromGallery = (bgId: string) => {
+    setProject(prev => ({
+      ...prev,
+      backgroundGallery: (prev.backgroundGallery || []).filter(bg => bg.id !== bgId),
+      updatedAt: Date.now()
+    }));
+  };
+
   const saveCurrentProjectToLibrary = () => {
     const novelId = project.id || `novel_${Date.now()}`;
     const entry: LibraryNovelEntry = {
@@ -231,12 +285,10 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const saveGameToSlot = (slotNumber: number) => {
     const novelId = project.id || 'current_project';
     let currentScene: any = null;
-    let currentChapter: any = null;
 
     for (const chap of project.chapters) {
       const s = chap.scenes.find(sc => sc.id === gameState.currentSceneId);
       if (s) {
-        currentChapter = chap;
         currentScene = s;
         break;
       }
@@ -258,7 +310,6 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       previewBgUrl: previewBg,
       previewText: previewTxt,
       sceneTitle: currentScene?.title || 'Escena',
-      chapterTitle: currentChapter?.title || 'Capítulo',
       state: JSON.parse(JSON.stringify(gameState))
     };
 
@@ -317,9 +368,6 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // -------------------------------------------------------------
-  // FUNCIONES DE EDICIÓN & HISTORIA
-  // -------------------------------------------------------------
   const addOrUpdateCharacter = (character: Character) => {
     setProject(prev => ({
       ...prev,
@@ -579,19 +627,22 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
+    const targetChapId = currentChapterId || project.chapters[0]?.id || '';
+    const targetSceneId = currentSceneId || project.chapters[0]?.scenes[0]?.id || '';
+
     const initialVars: Record<string, boolean | number | string> = {};
     Object.values(project.variables || {}).forEach(v => {
       initialVars[v.name] = v.defaultValue;
     });
 
     setGameState({
-      currentChapterId: project.chapters[0]?.id || '',
-      currentSceneId: project.chapters[0]?.scenes[0]?.id || '',
+      currentChapterId: targetChapId,
+      currentSceneId: targetSceneId,
       currentBranchId: 'main',
       currentEventIndex: 0,
       playerName: project.defaultPlayerName || 'Protagonista',
       runtimeVariables: initialVars,
-      runtimeCharacters: JSON.parse(JSON.stringify(project.characters)),
+      runtimeCharacters: JSON.parse(JSON.stringify(project.characters || {})),
       history: []
     });
   };
@@ -644,51 +695,93 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const advancePlayerEvent = () => {
-    let currentScene: any = null;
-    for (const chap of project.chapters) {
-      const s = chap.scenes.find(sc => sc.id === gameState.currentSceneId);
-      if (s) { currentScene = s; break; }
-    }
-    if (!currentScene) return;
+    setGameState(prev => {
+      let currentScene: any = null;
+      let currentChap: any = null;
 
-    const timeline: TimelineEvent[] = gameState.currentBranchId === 'main'
-      ? currentScene.timeline
-      : (currentScene.branches?.[gameState.currentBranchId]?.timeline || []);
-
-    const currentEvent = timeline[gameState.currentEventIndex];
-    if (!currentEvent) return;
-
-    if (currentEvent.type === 'dialogue') {
-      const rawSpeakerName = currentEvent.speakerId === 'narrator'
-        ? 'Narrador'
-        : (project.characters[currentEvent.speakerId]?.name || 'Personaje');
-      
-      const parsedText = parseTextTokens(currentEvent.text);
-
-      if (currentEvent.jumpToBranchId) {
-        const shouldJump = checkCondition(currentEvent.jumpCondition, gameState.runtimeVariables);
-        if (shouldJump) {
-          setGameState(prev => ({
-            ...prev,
-            history: [...prev.history, `${rawSpeakerName}: ${parsedText}`],
-            currentBranchId: currentEvent.jumpToBranchId!,
-            currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
-            activeEffect: currentEvent.effect || 'none'
-          }));
-          return;
+      for (const chap of project.chapters) {
+        const s = chap.scenes.find(sc => sc.id === prev.currentSceneId);
+        if (s) {
+          currentChap = chap;
+          currentScene = s;
+          break;
         }
       }
 
-      setGameState(prev => ({
-        ...prev,
-        history: [...prev.history, `${rawSpeakerName}: ${parsedText}`],
-        activeEffect: currentEvent.effect || 'none'
-      }));
-    }
+      if (!currentScene && project.chapters[0]?.scenes[0]) {
+        currentChap = project.chapters[0];
+        currentScene = project.chapters[0].scenes[0];
+      }
+      if (!currentScene) return prev;
 
-    if (gameState.currentEventIndex < timeline.length - 1) {
-      setGameState(prev => ({ ...prev, currentEventIndex: prev.currentEventIndex + 1 }));
-    }
+      const timeline: TimelineEvent[] = prev.currentBranchId === 'main'
+        ? (currentScene.timeline || [])
+        : (currentScene.branches?.[prev.currentBranchId]?.timeline || []);
+
+      const currentEvent = timeline[prev.currentEventIndex];
+      if (!currentEvent) return prev;
+
+      const rawSpeakerName = currentEvent.type === 'dialogue'
+        ? (currentEvent.speakerId === 'narrator' ? 'Narrador' : (project.characters[currentEvent.speakerId]?.name || 'Personaje'))
+        : 'Decisión';
+
+      const currentName = prev.playerName || project.defaultPlayerName || 'Protagonista';
+      const parsedText = currentEvent.type === 'dialogue' 
+        ? currentEvent.text.replace(/\{player\}|\[player\]|\(player\)/gi, currentName) 
+        : '';
+      const newHistoryEntry = currentEvent.type === 'dialogue' ? `${rawSpeakerName}: ${parsedText}` : null;
+      const nextHistory = newHistoryEntry ? [...prev.history, newHistoryEntry] : prev.history;
+
+      // 1. Salto condicional de rama
+      if (currentEvent.type === 'dialogue' && currentEvent.jumpToBranchId) {
+        const shouldJump = checkCondition(currentEvent.jumpCondition, prev.runtimeVariables);
+        if (shouldJump) {
+          return {
+            ...prev,
+            history: nextHistory,
+            currentBranchId: currentEvent.jumpToBranchId,
+            currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
+            activeEffect: currentEvent.effect || 'none'
+          };
+        }
+      }
+
+      // 2. Siguiente viñeta dentro de la escena
+      if (prev.currentEventIndex < timeline.length - 1) {
+        return {
+          ...prev,
+          currentEventIndex: prev.currentEventIndex + 1,
+          history: nextHistory,
+          activeEffect: currentEvent.type === 'dialogue' ? (currentEvent.effect || 'none') : prev.activeEffect
+        };
+      }
+
+      // 3. Siguiente escena si se acabaron las viñetas
+      const allScenes: { chapId: string; scene: any }[] = [];
+      project.chapters.forEach(ch => {
+        ch.scenes.forEach(sc => allScenes.push({ chapId: ch.id, scene: sc }));
+      });
+
+      const currentIdx = allScenes.findIndex(item => item.scene.id === currentScene.id);
+      if (currentIdx !== -1 && currentIdx < allScenes.length - 1) {
+        const nextItem = allScenes[currentIdx + 1];
+        return {
+          ...prev,
+          currentChapterId: nextItem.chapId,
+          currentSceneId: nextItem.scene.id,
+          currentBranchId: 'main',
+          currentEventIndex: 0,
+          history: nextHistory,
+          activeEffect: 'none'
+        };
+      }
+
+      // Fin de la historia
+      return {
+        ...prev,
+        history: nextHistory
+      };
+    });
   };
 
   const applyVariableChanges = (changes: VariableChange[], runtimeVars: Record<string, any>) => {
@@ -730,6 +823,9 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     for (const chap of project.chapters) {
       const s = chap.scenes.find(sc => sc.id === gameState.currentSceneId);
       if (s) { currentScene = s; break; }
+    }
+    if (!currentScene && project.chapters[0]?.scenes[0]) {
+      currentScene = project.chapters[0].scenes[0];
     }
     if (!currentScene) return;
 
@@ -801,6 +897,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         duplicateTimelineEventBase,
         addOrUpdateVariable,
         deleteVariable,
+        deleteBackgroundFromGallery,
         gameState,
         setPlayerName,
         startPlaytest,

@@ -31,13 +31,15 @@ const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
 };
 
 export default function PlayerView() {
-  const { project, gameState, advancePlayerEvent, selectChoiceOption, parseTextTokens, setPlayerName } = useNovel();
+  const { project, gameState, advancePlayerEvent, selectChoiceOption, parseTextTokens, setPlayerName, startPlaytest } = useNovel();
   const [showHistory, setShowHistory] = useState(false);
   const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
+  const [isLargeScreenMode, setIsLargeScreenMode] = useState(false);
 
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const sfxAudioRef = useRef<HTMLAudioElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -51,19 +53,34 @@ export default function PlayerView() {
     };
   }, []);
 
-  const [askingName, setAskingName] = useState(Boolean(project.askPlayerName && gameState.currentEventIndex === 0 && gameState.history.length === 0));
+  const [askingName, setAskingName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState(gameState.playerName || project.defaultPlayerName || '');
+
+  // Inicializar nombre solo si está explícitamente configurado y no se ha preguntado
+  useEffect(() => {
+    if (project.askPlayerName && !gameState.playerName && gameState.currentEventIndex === 0 && gameState.history.length === 0) {
+      setAskingName(true);
+    }
+  }, []);
+
+  // Asegurar que si gameState está vacío al entrar, inicialice el juego
+  useEffect(() => {
+    if (!gameState.currentSceneId) {
+      startPlaytest();
+    }
+  }, [gameState.currentSceneId]);
 
   const currentChapter = project.chapters.find(c => c.id === gameState.currentChapterId) || project.chapters[0];
   const currentScene = currentChapter?.scenes.find(s => s.id === gameState.currentSceneId) || currentChapter?.scenes[0];
 
   const timeline = gameState.currentBranchId === 'main'
-    ? currentScene?.timeline
+    ? (currentScene?.timeline || [])
     : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
 
   const currentEvent = timeline?.[gameState.currentEventIndex];
   const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
+  // Controlador de Audio (BGM y SFX)
   useEffect(() => {
     const eventBgm = currentEvent?.bgmUrl;
     if (eventBgm === 'stop') {
@@ -109,12 +126,13 @@ export default function PlayerView() {
     ? gameState.runtimeCharacters[currentEvent.speakerId] || project.characters[currentEvent.speakerId]
     : null;
 
-  const visibleVariables = Object.entries(gameState.runtimeVariables).filter(([key]) => {
+  const visibleVariables = Object.entries(gameState.runtimeVariables || {}).filter(([key]) => {
     return project.variables?.[key]?.isVisibleInHUD === true;
   });
 
   const handleScreenClick = () => {
-    if (currentEvent?.type === 'choice' || showHistory || showSaveLoad || askingName) return;
+    if (showHistory || showSaveLoad || askingName) return;
+    if (currentEvent?.type === 'choice') return;
     advancePlayerEvent();
   };
 
@@ -124,6 +142,15 @@ export default function PlayerView() {
       setPlayerName(tempPlayerName.trim());
     }
     setAskingName(false);
+  };
+
+  const toggleFullScreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => console.error(err));
+    } else {
+      document.exitFullscreen().catch(err => console.error(err));
+    }
   };
 
   const getAnimationKeyframes = (anim: CharacterAnimation | undefined) => {
@@ -143,16 +170,17 @@ export default function PlayerView() {
 
   return (
     <div 
+      ref={containerRef}
       style={{
         position: 'relative',
         width: '100vw',
-        height: 'calc(100vh - 48px)',
+        height: 'calc(100dvh - 48px)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         background: '#09090e',
-        padding: 16,
+        padding: isPortrait ? 6 : 10,
         boxSizing: 'border-box',
         overflow: 'hidden'
       }}
@@ -176,38 +204,59 @@ export default function PlayerView() {
           0% { transform: translate(-70%, 0); opacity: 0; }
           100% { transform: translate(-50%, 0); opacity: 1; }
         }
+
+        /* Solo aplica en móviles/pantallas bajas en horizontal */
+        @media (max-height: 500px) and (orientation: landscape) {
+          .vn-dialog-box {
+            padding: 6px 12px !important;
+            bottom: 6px !important;
+            min-height: 70px !important;
+          }
+          .vn-dialog-title {
+            font-size: 11px !important;
+            margin-bottom: 2px !important;
+          }
+          .vn-dialog-text {
+            font-size: 11px !important;
+            line-height: 1.25 !important;
+          }
+          .vn-choice-container {
+            top: 4% !important;
+            gap: 4px !important;
+          }
+        }
       `}</style>
 
-      {/* Contenedor del Lienzo unificado en tamaño grande para PC */}
+      {/* Contenedor del Lienzo Proporcional */}
       <div 
         onClick={handleScreenClick}
         style={{
           position: 'relative',
-          width: isPortrait ? '100%' : 'calc((100vh - 80px) * 16 / 9)',
-          height: isPortrait ? 'auto' : 'calc(100vh - 80px)',
-          maxWidth: isPortrait ? '100%' : 'calc((100vh - 80px) * 16 / 9)',
-          maxHeight: 'calc(100vh - 80px)',
+          width: isPortrait ? '100%' : 'auto',
+          height: isPortrait ? 'auto' : '100%',
+          maxWidth: '100%',
+          maxHeight: '100%',
           aspectRatio: '16 / 9',
-          backgroundImage: `url(${effectiveBgUrl})`,
+          backgroundImage: effectiveBgUrl ? `url(${effectiveBgUrl})` : undefined,
+          backgroundColor: '#0c0c14',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           overflow: 'hidden',
-          borderRadius: 14,
+          borderRadius: isLargeScreenMode ? 0 : 12,
           boxShadow: '0 25px 70px rgba(0,0,0,0.85)',
-          border: '1px solid rgba(255,255,255,0.15)',
+          border: isLargeScreenMode ? 'none' : '1px solid rgba(255,255,255,0.15)',
           userSelect: 'none',
-          cursor: currentEvent?.type === 'dialogue' ? 'pointer' : 'default',
+          cursor: currentEvent ? 'pointer' : 'default',
           flexShrink: 0
         }}
-      
       >
         {/* Barra Superior */}
         <div 
           style={{
             position: 'absolute',
-            top: 12,
-            left: 16,
-            right: 16,
+            top: 10,
+            left: 12,
+            right: 12,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -245,7 +294,7 @@ export default function PlayerView() {
                 color: '#052e16',
                 border: 'none',
                 borderRadius: 6,
-                padding: '5px 12px',
+                padding: '4px 10px',
                 fontSize: 11,
                 fontWeight: 800,
                 cursor: 'pointer'
@@ -261,12 +310,33 @@ export default function PlayerView() {
                 color: '#fff',
                 border: '1px solid #555',
                 borderRadius: 6,
-                padding: '5px 12px',
+                padding: '4px 10px',
                 fontSize: 11,
                 cursor: 'pointer'
               }}
             >
               📜 Historial
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsLargeScreenMode(prev => !prev);
+                toggleFullScreen();
+              }}
+              style={{
+                background: isLargeScreenMode ? '#38bdf8' : 'rgba(56, 189, 248, 0.2)',
+                color: isLargeScreenMode ? '#000' : '#38bdf8',
+                border: '1px solid #38bdf8',
+                borderRadius: 6,
+                padding: '4px 8px',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Alternar Pantalla Completa"
+            >
+              {isLargeScreenMode ? '🗗 Reducir' : '🖥️ Pantalla Grande'}
             </button>
           </div>
         </div>
@@ -280,9 +350,13 @@ export default function PlayerView() {
           const slotY = SLOT_POSITIONS_Y[inst.verticalSlot || 'floor'] || '0%';
           const scale = SCALE_PERCENTAGES[inst.scale || 'medium'] || '68%';
 
+          const resolvedSprite = charDef.expressions[inst.expression] 
+            || Object.values(charDef.expressions || {})[0] 
+            || charDef.avatarUrl;
+
           return (
             <div
-              key={inst.characterId}
+              key={`${inst.characterId}_evt_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
               style={{
                 position: 'absolute',
                 bottom: slotY,
@@ -297,7 +371,7 @@ export default function PlayerView() {
               }}
             >
               <img 
-                src={charDef.expressions[inst.expression] || charDef.avatarUrl} 
+                src={resolvedSprite} 
                 alt={charDef.name}
                 draggable={false}
                 style={{ height: '100%', width: 'auto', objectFit: 'contain' }}
@@ -309,6 +383,7 @@ export default function PlayerView() {
         {/* Decisiones */}
         {currentEvent?.type === 'choice' && (
           <div 
+            className="vn-choice-container"
             style={{
               position: 'absolute',
               top: '10%',
@@ -361,12 +436,14 @@ export default function PlayerView() {
           </div>
         )}
 
-        {/* Caja de Diálogo */}
+        {/* Caja de Diálogo Adaptativa */}
         {currentEvent?.type === 'dialogue' && (
           <div 
+            className="vn-dialog-box"
+            onClick={handleScreenClick}
             style={{
               position: 'absolute',
-              bottom: 14,
+              bottom: 12,
               left: '50%',
               transform: 'translateX(-50%)',
               width: '95%',
@@ -378,30 +455,77 @@ export default function PlayerView() {
               color: '#fff',
               boxShadow: '0 10px 35px rgba(0,0,0,0.7)',
               zIndex: 30,
-              boxSizing: 'border-box'
+              boxSizing: 'border-box',
+              cursor: 'pointer'
             }}
           >
-            <div style={{ 
-              color: speakerChar?.color || '#fff', 
-              fontWeight: 800, 
-              fontSize: 14, 
-              marginBottom: 4,
-              textShadow: '0 2px 4px rgba(0,0,0,0.6)'
-            }}>
+            <div 
+              className="vn-dialog-title"
+              style={{ 
+                color: speakerChar?.color || '#fff', 
+                fontWeight: 800, 
+                fontSize: 14, 
+                marginBottom: 4,
+                textShadow: '0 2px 4px rgba(0,0,0,0.6)'
+              }}
+            >
               {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
             </div>
-            <div style={{ 
-              fontSize: 13, 
-              lineHeight: 1.4, 
-              minHeight: 26, 
-              color: '#f3f4f6' 
-            }}>
+            <div 
+              className="vn-dialog-text"
+              style={{ 
+                fontSize: 13, 
+                lineHeight: 1.4, 
+                minHeight: 26, 
+                color: '#f3f4f6' 
+              }}
+            >
               {parseTextTokens(currentEvent.text)}
             </div>
           </div>
         )}
 
-        {/* Modal de Nombre */}
+        {/* Fin de la Historia */}
+        {!currentEvent && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            background: 'rgba(10, 10, 16, 0.95)',
+            color: '#fff',
+            zIndex: 35,
+            padding: 20,
+            textAlign: 'center'
+          }}>
+            <h2 style={{ fontSize: 20, color: '#38bdf8', margin: 0 }}>Fin de la Escena / Historia</h2>
+            <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>Has llegado al final de las viñetas disponibles.</p>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                startPlaytest();
+              }}
+              style={{
+                marginTop: 8,
+                padding: '8px 18px',
+                background: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Reiniciar
+            </button>
+          </div>
+        )}
+
+        {/* Modal de Entrada de Nombre */}
         {askingName && (
           <div style={{
             position: 'absolute',
