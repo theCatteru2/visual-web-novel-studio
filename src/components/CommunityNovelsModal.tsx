@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -406,7 +406,7 @@ export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovel
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
               {filteredNovels.map(novel => {
-                const isMyNovel = user && (novel.authorId === user.uid || profile?.role === 'admin');
+                const isMyNovel = user && (novel.authorId === user.uid || (profile as any)?.role === 'admin');
 
                 return (
                   <div key={novel.id} style={{ position: 'relative', background: '#161622', border: `1px solid ${novel.isNsfw ? '#f43f5e55' : '#28283a'}`, borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
