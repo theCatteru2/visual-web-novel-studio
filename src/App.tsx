@@ -46,6 +46,7 @@ function MainStudio() {
         {(mode === 'community' || mode === 'profile') && (
           <CommunityFeed 
             onPlayNovel={() => setMode('player')} 
+            onOpenProfile={() => setMode('profile')}
           />
         )}
       </div>
