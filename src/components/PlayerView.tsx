@@ -184,26 +184,26 @@ export default function PlayerView() {
     >
       <style>{`
         @keyframes jumpAnim {
-  0% { transform: translate(-50%, 0); }
-  50% { transform: translate(-50%, -25px); }
-  100% { transform: translate(-50%, 0); }
-}
+          0% { transform: translateY(0); }
+          50% { transform: translateY(-25px); }
+          100% { transform: translateY(0); }
+        }
 
-@keyframes shakeAnim {
-  0%, 100% { transform: translate(-50%, 0); }
-  25% { transform: translate(-55%, 0); }
-  75% { transform: translate(-45%, 0); }
-}
+        @keyframes shakeAnim {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-8px); }
+          75% { transform: translateX(8px); }
+        }
 
-@keyframes fadeInAnim {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
+        @keyframes fadeInAnim {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
 
-@keyframes slideInAnim {
-  0% { transform: translate(-70%, 0); opacity: 0; }
-  100% { transform: translate(-50%, 0); opacity: 1; }
-}
+        @keyframes slideInAnim {
+          0% { transform: translateX(-30px); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
+        }
 
         /* Estilo estándar en PC */
         .vn-dialog-box {
@@ -375,75 +375,51 @@ export default function PlayerView() {
           </div>
         </div>
 
-       {/* Personajes en Escena */}
-{currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
-  const charDef = project.characters[inst.characterId];
-  if (!charDef) return null;
+        {/* Personajes en Escena */}
+        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
+          const charDef = project.characters[inst.characterId];
+          if (!charDef) return null;
 
-  const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
-  const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
-  const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+          const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
+          const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+          const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-  const resolvedSprite =
-    charDef.expressions?.[inst.expression] ||
-    Object.values(charDef.expressions || {})[0] ||
-    charDef.avatarUrl;
+          const resolvedSprite =
+            charDef.expressions?.[inst.expression] ||
+            Object.values(charDef.expressions || {})[0] ||
+            charDef.avatarUrl;
 
-  return (
-    <div
-      key={inst.characterId}
-      style={{
-        position: 'absolute',
-        bottom: slotY,
-        left: slotX,
-        transform: 'translateX(-50%)',
-        transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
-        pointerEvents: 'none',
-        zIndex: 10,
-        height: scale,
-        filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
-      }}
-    >
-      <img
-        src={resolvedSprite}
-        alt={charDef.name}
-        draggable={false}
-        style={{
-          display: 'block',
-          height: '100%',
-          width: 'auto',
-          objectFit: 'contain',
-          animation: getAnimationKeyframes(inst.animation)
-        }}
-      />
-    </div>
-  );
-})}
-    >
-      <div
-        key={`anim_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
-        style={{
-          height: '100%',
-          width: 'fit-content',
-          animation: getAnimationKeyframes(inst.animation),
-          filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
-        }}
-      >
-        <img
-          src={resolvedSprite}
-          alt={charDef.name}
-          draggable={false}
-          style={{
-            display: 'block',
-            height: '100%',
-            width: 'auto',
-            objectFit: 'contain',
-          }}
-        />
-      </div>
-    </div>
-  );
-})}
+          return (
+            <div
+              key={inst.characterId}
+              style={{
+                position: 'absolute',
+                bottom: slotY,
+                left: slotX,
+                transform: 'translateX(-50%)',
+                transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
+                pointerEvents: 'none',
+                zIndex: 10,
+                height: scale,
+                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
+              }}
+            >
+              <img
+                src={resolvedSprite}
+                alt={charDef.name}
+                draggable={false}
+                style={{
+                  display: 'block',
+                  height: '100%',
+                  width: 'auto',
+                  objectFit: 'contain',
+                  animation: getAnimationKeyframes(inst.animation)
+                }}
+              />
+            </div>
+          );
+        })}
+
         {/* Decisiones */}
         {currentEvent?.type === 'choice' && (
           <div 
