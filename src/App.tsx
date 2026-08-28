@@ -12,7 +12,7 @@ import CommunityFeed from './components/CommunityFeed';
 import HomeScreen from './components/HomeScreen';
 import UserProfileView from './components/UserProfileView';
 import MyLibraryView from './components/MyLibraryView';
-import PlaytestPromptModal from './components/PlaytestPromptModal';
+import { NovelProject } from './types';
 
 function MainStudio() {
   const { setProject, startPlaytest } = useNovel();
@@ -20,7 +20,6 @@ function MainStudio() {
   const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile' | 'library'>('home');
   const [isCharTreeOpen, setIsCharTreeOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
-  const [isPlaytestPromptOpen, setIsPlaytestPromptOpen] = useState(false);
 
   // Soporte para enlaces privados: ?privatePlay=NOVEL_ID
   useEffect(() => {
@@ -55,7 +54,6 @@ function MainStudio() {
         setMode={setMode} 
         onOpenCharacterTree={() => setIsCharTreeOpen(true)}
         onOpenPublishModal={() => setIsPublishOpen(true)}
-        onTriggerEditorPlay={() => setIsPlaytestPromptOpen(true)}
       />
 
       {/* Vistas Principales */}
@@ -90,7 +88,7 @@ function MainStudio() {
           <MyLibraryView
             onOpenEditor={() => setMode('editor')}
             onPlayNovel={() => setMode('player')}
-            onOpenPublishModal={(proj) => {
+            onOpenPublishModal={(proj: NovelProject) => {
               setProject(proj);
               setIsPublishOpen(true);
             }}
@@ -108,20 +106,6 @@ function MainStudio() {
       <PublishModal 
         isOpen={isPublishOpen} 
         onClose={() => setIsPublishOpen(false)} 
-      />
-
-      {/* Modal de Playtest en el Editor */}
-      <PlaytestPromptModal
-        isOpen={isPlaytestPromptOpen}
-        onClose={() => setIsPlaytestPromptOpen(false)}
-        onStartFromCurrent={() => {
-          startPlaytest(undefined, false);
-          setMode('player');
-        }}
-        onStartFromBeginning={() => {
-          startPlaytest(undefined, true);
-          setMode('player');
-        }}
       />
     </div>
   );
