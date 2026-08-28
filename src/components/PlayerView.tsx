@@ -3,7 +3,7 @@ import { useNovel } from '../context/NovelContext';
 import { MagneticSlot, VerticalSlot, CharacterScale, CharacterAnimation } from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
-const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
+const SLOT_POSITIONS_X: Record<string, string> = {
   'far-left': '12%',
   'left': '25%',
   'center-left': '38%',
@@ -13,7 +13,7 @@ const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
   'far-right': '88%'
 };
 
-const SLOT_POSITIONS_Y: Record<VerticalSlot, string> = {
+const SLOT_POSITIONS_Y: Record<string, string> = {
   'deep_sink': '-25%',
   'sink': '-12%',
   'floor': '0%',
@@ -23,7 +23,7 @@ const SLOT_POSITIONS_Y: Record<VerticalSlot, string> = {
   'sky': '48%'
 };
 
-const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
+const SCALE_PERCENTAGES: Record<string, string> = {
   'small': '48%',
   'medium': '68%',
   'large': '88%',
