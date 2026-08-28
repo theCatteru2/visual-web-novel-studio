@@ -28,7 +28,7 @@ export default function Navbar({
     activeLibraryNovelId,
     resetProjectToDefault 
   } = useNovel();
-  const { user, profile, loginWithGoogle, logout } = useAuth();
+  const { user, profile, loginWithGoogle } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isSavingCloud, setIsSavingCloud] = useState(false);
