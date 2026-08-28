@@ -193,10 +193,10 @@ export interface CommunityAsset {
   id: string;
   title: string;
   category: 'background' | 'character' | 'bgm' | 'sfx';
+  tags?: string[];
   url: string;
   authorName: string;
   authorId: string;
   createdAt: number;
   isNsfw?: boolean;
-  tags?: string[];
 }
