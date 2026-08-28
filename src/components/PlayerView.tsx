@@ -209,14 +209,47 @@ export default function PlayerView() {
           100% { transform: translate(-50%, 0); opacity: 1; }
         }
 
+        /* Diseño estándar para PC y pantallas grandes */
+        .vn-dialog-box {
+          padding: 14px 24px;
+          bottom: 14px;
+          min-height: 85px;
+        }
+        .vn-dialog-title {
+          font-size: 16px;
+          margin-bottom: 4px;
+        }
+        .vn-dialog-text {
+          font-size: 16px;
+          line-height: 1.45;
+        }
+
+        /* Ajuste compacto para móviles en vertical (portrait) */
+        @media (max-width: 640px) and (orientation: portrait) {
+          .vn-dialog-box {
+            padding: 8px 12px !important;
+            bottom: 6px !important;
+            min-height: 58px !important;
+          }
+          .vn-dialog-title {
+            font-size: 13px !important;
+            margin-bottom: 2px !important;
+          }
+          .vn-dialog-text {
+            font-size: 12px !important;
+            line-height: 1.35 !important;
+          }
+        }
+
+        /* Ajuste compacto para móviles en horizontal / landscape */
         @media (max-height: 520px) and (orientation: landscape) {
           .vn-dialog-box {
-            padding: 5px 12px !important;
+            padding: 6px 14px !important;
             bottom: 4px !important;
             min-height: 54px !important;
           }
           .vn-dialog-title {
-            font-size: 11px !important;
+            font-size: 12px !important;
             margin-bottom: 1px !important;
           }
           .vn-dialog-text {
@@ -448,17 +481,15 @@ export default function PlayerView() {
             onClick={handleScreenClick}
             style={{
               position: 'absolute',
-              bottom: isPortrait ? 4 : 8,
               left: '50%',
               transform: 'translateX(-50%)',
-              width: isPortrait ? '96%' : '95%',
-              background: 'rgba(10, 10, 15, 0.95)',
-              backdropFilter: 'blur(10px)',
-              border: `1.5px solid ${speakerChar?.color || '#3b82f6'}`,
-              borderRadius: 8,
-              padding: isPortrait ? '6px 10px' : '8px 14px',
+              width: isPortrait ? '96%' : '94%',
+              background: 'rgba(8, 8, 14, 0.94)',
+              backdropFilter: 'blur(12px)',
+              border: `2px solid ${speakerChar?.color || '#3b82f6'}`,
+              borderRadius: 12,
               color: '#fff',
-              boxShadow: '0 10px 35px rgba(0,0,0,0.7)',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
               zIndex: 30,
               boxSizing: 'border-box',
               cursor: 'pointer'
@@ -468,10 +499,9 @@ export default function PlayerView() {
               className="vn-dialog-title"
               style={{ 
                 color: speakerChar?.color || '#fff', 
-                fontWeight: 800, 
-                fontSize: isPortrait ? 12 : 13, 
-                marginBottom: 2,
-                textShadow: '0 2px 4px rgba(0,0,0,0.6)'
+                fontWeight: 900, 
+                letterSpacing: '0.4px',
+                textShadow: '0 2px 6px rgba(0,0,0,0.7)'
               }}
             >
               {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
@@ -479,10 +509,8 @@ export default function PlayerView() {
             <div 
               className="vn-dialog-text"
               style={{ 
-                fontSize: isPortrait ? 12 : 13, 
-                lineHeight: 1.35, 
-                minHeight: isPortrait ? 20 : 24, 
-                color: '#f3f4f6' 
+                color: '#f8fafc',
+                textShadow: '0 1px 3px rgba(0,0,0,0.8)'
               }}
             >
               {parseTextTokens(currentEvent.text)}
