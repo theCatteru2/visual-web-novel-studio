@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
-import { CharacterAnimation } from '../types';
+import { MagneticSlot, VerticalSlot, CharacterScale, CharacterAnimation } from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
-const SLOT_POSITIONS_X: Record<string, string> = {
+const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
   'far-left': '12%',
   'left': '25%',
   'center-left': '38%',
@@ -13,7 +13,7 @@ const SLOT_POSITIONS_X: Record<string, string> = {
   'far-right': '88%'
 };
 
-const SLOT_POSITIONS_Y: Record<string, string> = {
+const SLOT_POSITIONS_Y: Record<VerticalSlot, string> = {
   'deep_sink': '-25%',
   'sink': '-12%',
   'floor': '0%',
@@ -23,7 +23,7 @@ const SLOT_POSITIONS_Y: Record<string, string> = {
   'sky': '48%'
 };
 
-const SCALE_PERCENTAGES: Record<string, string> = {
+const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
   'small': '48%',
   'medium': '68%',
   'large': '88%',
@@ -150,21 +150,20 @@ export default function PlayerView() {
     }
   };
 
-    const getAnimationKeyframes = (anim: CharacterAnimation | undefined) => {
+  const getAnimationKeyframes = (anim: CharacterAnimation | undefined) => {
     switch (anim) {
       case 'bounce':
-        return 'jumpAnim 0.4s ease-out 0.2s backwards';
+        return 'jumpAnim 0.4s ease-out';
       case 'shake':
-        return 'shakeAnim 0.3s ease-in-out 0.2s backwards';
+        return 'shakeAnim 0.3s ease-in-out';
       case 'fade_in':
-        return 'fadeInAnim 0.5s ease-out 0.2s backwards';
+        return 'fadeInAnim 0.5s ease-out';
       case 'slide_in':
-        return 'slideInAnim 0.4s ease-out 0.2s backwards';
+        return 'slideInAnim 0.4s ease-out';
       default:
         return 'none';
     }
   };
-
 
   return (
     <div 
@@ -374,50 +373,43 @@ export default function PlayerView() {
         </div>
 
         {/* Personajes en Escena */}
-{currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
-  const charDef = project.characters[inst.characterId];
-  if (!charDef) return null;
+        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
+          const charDef = project.characters[inst.characterId];
+          if (!charDef) return null;
 
-  const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
-  const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
-  const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+          const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
+          const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+          const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-  const resolvedSprite = charDef.expressions?.[inst.expression] 
-    || Object.values(charDef.expressions || {})[0] 
-    || charDef.avatarUrl;
+          const resolvedSprite = charDef.expressions?.[inst.expression] 
+            || Object.values(charDef.expressions || {})[0] 
+            || charDef.avatarUrl;
 
-  return (
-    <div
-      key={inst.characterId}
-      style={{
-        position: 'absolute',
-        bottom: slotY,
-        left: slotX,
-        transform: 'translateX(-50%)',
-        transition: 'all 0.2s ease',
-        pointerEvents: 'none',
-        zIndex: 10,
-        height: scale,
-        filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
-      }}
-    >
-      <img 
-        key={`${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
-        src={resolvedSprite} 
-        alt={charDef.name}
-        draggable={false}
-        style={{ 
-          height: '100%', 
-          width: 'auto', 
-          objectFit: 'contain',
-          animation: getAnimationKeyframes(inst.animation)
-        }}
-      />
-    </div>
-  );
-})}
-
-
+          return (
+            <div
+              key={`${inst.characterId}_evt_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
+              style={{
+                position: 'absolute',
+                bottom: slotY,
+                left: slotX,
+                transform: 'translateX(-50%)',
+                transition: 'all 0.2s ease',
+                pointerEvents: 'none',
+                zIndex: 10,
+                height: scale,
+                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
+                animation: getAnimationKeyframes(inst.animation)
+              }}
+            >
+              <img 
+                src={resolvedSprite} 
+                alt={charDef.name}
+                draggable={false}
+                style={{ height: '100%', width: 'auto', objectFit: 'contain' }}
+              />
+            </div>
+          );
+        })}
 
         {/* Decisiones */}
         {currentEvent?.type === 'choice' && (
