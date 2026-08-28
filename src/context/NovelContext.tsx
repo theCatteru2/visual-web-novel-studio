@@ -9,7 +9,8 @@ import {
   VariableChange,
   BranchJumpCondition,
   LibraryNovelEntry,
-  SaveSlot
+  SaveSlot,
+  Scene
 } from '../types';
 import { mockProject } from '../mockData';
 
@@ -21,12 +22,13 @@ interface NovelContextType {
   importProjectJson: (jsonString: string) => boolean;
   resetProjectToDefault: () => void;
 
-  currentChapterId: string;
-  setCurrentChapterId: (id: string) => void;
   currentSceneId: string;
   setCurrentSceneId: (id: string) => void;
   currentBranchId: string;
   setCurrentBranchId: (id: string) => void;
+
+  activeLibraryNovelId: string | null;
+  setActiveLibraryNovelId: (id: string | null) => void;
 
   addOrUpdateCharacter: (character: Character) => void;
   deleteCharacter: (characterId: string) => void;
@@ -69,6 +71,13 @@ const LIBRARY_STORAGE_KEY = 'vwn_studio_library_v100';
 
 const NovelContext = createContext<NovelContextType | undefined>(undefined);
 
+// Helper para obtener la lista plana de escenas
+const getProjectScenes = (proj: any): Scene[] => {
+  if (proj?.scenes && Array.isArray(proj.scenes)) return proj.scenes;
+  if (proj?.chapters?.[0]?.scenes && Array.isArray(proj.chapters[0].scenes)) return proj.chapters[0].scenes;
+  return [];
+};
+
 export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [project, setProject] = useState<NovelProject>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -94,12 +103,12 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return {};
   });
 
-  const firstChapterId = project.chapters[0]?.id || '';
-  const firstSceneId = project.chapters[0]?.scenes[0]?.id || '';
+  const initialScenes = getProjectScenes(project);
+  const firstSceneId = initialScenes[0]?.id || '';
 
-  const [currentChapterId, setCurrentChapterId] = useState<string>(firstChapterId);
   const [currentSceneId, setCurrentSceneId] = useState<string>(firstSceneId);
   const [currentBranchId, setCurrentBranchId] = useState<string>('main');
+  const [activeLibraryNovelId, setActiveLibraryNovelId] = useState<string | null>(null);
 
   const [gameState, setGameState] = useState<PlayerGameState>(() => {
     const initialVars: Record<string, boolean | number | string> = {};
@@ -108,7 +117,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     return {
-      currentChapterId: firstChapterId,
+      currentChapterId: '',
       currentSceneId: firstSceneId,
       currentBranchId: 'main',
       currentEventIndex: 0,
@@ -144,11 +153,11 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     localStorage.removeItem(LIBRARY_STORAGE_KEY);
     setProject(mockProject);
-    const defChapId = mockProject.chapters[0]?.id || '';
-    const defSceneId = mockProject.chapters[0]?.scenes[0]?.id || '';
-    setCurrentChapterId(defChapId);
+    const defScenes = getProjectScenes(mockProject);
+    const defSceneId = defScenes[0]?.id || '';
     setCurrentSceneId(defSceneId);
     setCurrentBranchId('main');
+    setActiveLibraryNovelId(null);
 
     const initialVars: Record<string, boolean | number | string> = {};
     Object.values(mockProject.variables || {}).forEach(v => {
@@ -156,7 +165,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     setGameState({
-      currentChapterId: defChapId,
+      currentChapterId: '',
       currentSceneId: defSceneId,
       currentBranchId: 'main',
       currentEventIndex: 0,
@@ -182,13 +191,13 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const importProjectJson = (jsonString: string): boolean => {
     try {
       const parsed = JSON.parse(jsonString);
-      if (parsed.chapters && parsed.characters) {
+      const parsedScenes = getProjectScenes(parsed);
+      if (parsedScenes.length > 0 && parsed.characters) {
         setProject(parsed);
-        const chapId = parsed.chapters[0]?.id || '';
-        const scnId = parsed.chapters[0]?.scenes[0]?.id || '';
-        setCurrentChapterId(chapId);
+        const scnId = parsedScenes[0]?.id || '';
         setCurrentSceneId(scnId);
         setCurrentBranchId('main');
+        setActiveLibraryNovelId(null);
 
         const initialVars: Record<string, boolean | number | string> = {};
         Object.values(parsed.variables || {}).forEach((v: any) => {
@@ -196,7 +205,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
 
         setGameState({
-          currentChapterId: chapId,
+          currentChapterId: '',
           currentSceneId: scnId,
           currentBranchId: 'main',
           currentEventIndex: 0,
@@ -223,12 +232,13 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const saveCurrentProjectToLibrary = () => {
-    const novelId = project.id || `novel_${Date.now()}`;
+    const novelId = activeLibraryNovelId || project.id || `novel_${Date.now()}`;
+    const scenes = getProjectScenes(project);
     const entry: LibraryNovelEntry = {
       id: novelId,
       title: project.title || 'Novela sin título',
       description: project.description || '',
-      coverUrl: project.backgroundGallery?.[0]?.url || project.chapters[0]?.scenes[0]?.backgroundUrl,
+      coverUrl: project.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl,
       lastPlayedAt: Date.now(),
       isOwner: true,
       allowEdit: true,
@@ -237,15 +247,17 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     setLibrary(prev => ({ ...prev, [novelId]: entry }));
+    setActiveLibraryNovelId(novelId);
   };
 
   const loadProjectFromLibrary = (novelId: string): boolean => {
     const entry = library[novelId];
     if (!entry) return false;
     setProject(entry.project);
-    setCurrentChapterId(entry.project.chapters[0]?.id || '');
-    setCurrentSceneId(entry.project.chapters[0]?.scenes[0]?.id || '');
+    const scenes = getProjectScenes(entry.project);
+    setCurrentSceneId(scenes[0]?.id || '');
     setCurrentBranchId('main');
+    setActiveLibraryNovelId(novelId);
     return true;
   };
 
@@ -255,6 +267,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       delete copy[novelId];
       return copy;
     });
+    if (activeLibraryNovelId === novelId) setActiveLibraryNovelId(null);
   };
 
   const importCommunityNovelToLibrary = (
@@ -264,11 +277,12 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     allowEdit = false
   ): string => {
     const novelId = novel.id || `comm_${Date.now()}`;
+    const scenes = getProjectScenes(novel);
     const entry: LibraryNovelEntry = {
       id: novelId,
       title: novel.title || 'Novela Comunitaria',
       description: novel.description || '',
-      coverUrl: novel.backgroundGallery?.[0]?.url || novel.chapters[0]?.scenes[0]?.backgroundUrl,
+      coverUrl: novel.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl,
       authorName,
       authorId,
       lastPlayedAt: Date.now(),
@@ -282,20 +296,33 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return novelId;
   };
 
-  const saveGameToSlot = (slotNumber: number) => {
-    const novelId = project.id || 'current_project';
-    let currentScene: any = null;
-
-    for (const chap of project.chapters) {
-      const s = chap.scenes.find(sc => sc.id === gameState.currentSceneId);
-      if (s) {
-        currentScene = s;
-        break;
+  // Actualizador universal de escenas
+  const updateScenes = (updater: (scenes: Scene[]) => Scene[]) => {
+    setProject((prev: any) => {
+      if (prev.scenes && Array.isArray(prev.scenes)) {
+        return { ...prev, scenes: updater(prev.scenes), updatedAt: Date.now() };
       }
-    }
+      if (prev.chapters && Array.isArray(prev.chapters)) {
+        return {
+          ...prev,
+          chapters: prev.chapters.map((chap: any) => ({
+            ...chap,
+            scenes: updater(chap.scenes || [])
+          })),
+          updatedAt: Date.now()
+        };
+      }
+      return { ...prev, scenes: updater([]), updatedAt: Date.now() };
+    });
+  };
+
+  const saveGameToSlot = (slotNumber: number) => {
+    const novelId = activeLibraryNovelId || project.id || 'current_project';
+    const scenes = getProjectScenes(project);
+    const currentScene = scenes.find(sc => sc.id === gameState.currentSceneId);
 
     const timeline: TimelineEvent[] = gameState.currentBranchId === 'main'
-      ? currentScene?.timeline
+      ? (currentScene?.timeline || [])
       : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
 
     const curEvt = timeline?.[gameState.currentEventIndex];
@@ -347,6 +374,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!slot) return false;
 
     setProject(entry.project);
+    setActiveLibraryNovelId(novelId);
     startPlaytest(slot.state);
     return true;
   };
@@ -392,172 +420,127 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timeline: []
     };
 
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => {
-          if (sc.id === currentSceneId) {
-            return {
-              ...sc,
-              branches: { ...(sc.branches || {}), [newId]: newBranch }
-            };
-          }
-          return sc;
-        })
-      })),
-      updatedAt: Date.now()
+    updateScenes(scenes => scenes.map(sc => {
+      if (sc.id === currentSceneId) {
+        return {
+          ...sc,
+          branches: { ...(sc.branches || {}), [newId]: newBranch }
+        };
+      }
+      return sc;
     }));
     return newId;
   };
 
   const deleteBranch = (branchId: string) => {
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => {
-          if (sc.id === currentSceneId && sc.branches) {
-            const copy = { ...sc.branches };
-            delete copy[branchId];
-            return { ...sc, branches: copy };
-          }
-          return sc;
-        })
-      })),
-      updatedAt: Date.now()
+    updateScenes(scenes => scenes.map(sc => {
+      if (sc.id === currentSceneId && sc.branches) {
+        const copy = { ...sc.branches };
+        delete copy[branchId];
+        return { ...sc, branches: copy };
+      }
+      return sc;
     }));
     if (currentBranchId === branchId) setCurrentBranchId('main');
   };
 
   const addTimelineEvent = (event: TimelineEvent) => {
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => {
-          if (sc.id === currentSceneId) {
-            if (currentBranchId === 'main') {
-              return { ...sc, timeline: [...sc.timeline, event] };
-            } else if (sc.branches && sc.branches[currentBranchId]) {
-              const br = sc.branches[currentBranchId];
-              return {
-                ...sc,
-                branches: {
-                  ...sc.branches,
-                  [currentBranchId]: { ...br, timeline: [...br.timeline, event] }
-                }
-              };
+    updateScenes(scenes => scenes.map(sc => {
+      if (sc.id === currentSceneId) {
+        if (currentBranchId === 'main') {
+          return { ...sc, timeline: [...sc.timeline, event] };
+        } else if (sc.branches && sc.branches[currentBranchId]) {
+          const br = sc.branches[currentBranchId];
+          return {
+            ...sc,
+            branches: {
+              ...sc.branches,
+              [currentBranchId]: { ...br, timeline: [...br.timeline, event] }
             }
-          }
-          return sc;
-        })
-      })),
-      updatedAt: Date.now()
+          };
+        }
+      }
+      return sc;
     }));
   };
 
   const updateTimelineEvent = (index: number, event: TimelineEvent) => {
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => {
-          if (sc.id === currentSceneId) {
-            if (currentBranchId === 'main') {
-              const copy = [...sc.timeline];
-              copy[index] = event;
-              return { ...sc, timeline: copy };
-            } else if (sc.branches && sc.branches[currentBranchId]) {
-              const br = sc.branches[currentBranchId];
-              const copy = [...br.timeline];
-              copy[index] = event;
-              return {
-                ...sc,
-                branches: {
-                  ...sc.branches,
-                  [currentBranchId]: { ...br, timeline: copy }
-                }
-              };
+    updateScenes(scenes => scenes.map(sc => {
+      if (sc.id === currentSceneId) {
+        if (currentBranchId === 'main') {
+          const copy = [...sc.timeline];
+          copy[index] = event;
+          return { ...sc, timeline: copy };
+        } else if (sc.branches && sc.branches[currentBranchId]) {
+          const br = sc.branches[currentBranchId];
+          const copy = [...br.timeline];
+          copy[index] = event;
+          return {
+            ...sc,
+            branches: {
+              ...sc.branches,
+              [currentBranchId]: { ...br, timeline: copy }
             }
-          }
-          return sc;
-        })
-      })),
-      updatedAt: Date.now()
+          };
+        }
+      }
+      return sc;
     }));
   };
 
   const deleteTimelineEvent = (index: number) => {
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => {
-          if (sc.id === currentSceneId) {
-            if (currentBranchId === 'main') {
-              const copy = [...sc.timeline];
-              copy.splice(index, 1);
-              return { ...sc, timeline: copy };
-            } else if (sc.branches && sc.branches[currentBranchId]) {
-              const br = sc.branches[currentBranchId];
-              const copy = [...br.timeline];
-              copy.splice(index, 1);
-              return {
-                ...sc,
-                branches: {
-                  ...sc.branches,
-                  [currentBranchId]: { ...br, timeline: copy }
-                }
-              };
+    updateScenes(scenes => scenes.map(sc => {
+      if (sc.id === currentSceneId) {
+        if (currentBranchId === 'main') {
+          const copy = [...sc.timeline];
+          copy.splice(index, 1);
+          return { ...sc, timeline: copy };
+        } else if (sc.branches && sc.branches[currentBranchId]) {
+          const br = sc.branches[currentBranchId];
+          const copy = [...br.timeline];
+          copy.splice(index, 1);
+          return {
+            ...sc,
+            branches: {
+              ...sc.branches,
+              [currentBranchId]: { ...br, timeline: copy }
             }
-          }
-          return sc;
-        })
-      })),
-      updatedAt: Date.now()
+          };
+        }
+      }
+      return sc;
     }));
   };
 
   const reorderTimelineEvents = (sourceIndex: number, destinationIndex: number) => {
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => {
-          if (sc.id === currentSceneId) {
-            if (currentBranchId === 'main') {
-              const copy = [...sc.timeline];
-              const [moved] = copy.splice(sourceIndex, 1);
-              copy.splice(destinationIndex, 0, moved);
-              return { ...sc, timeline: copy };
-            } else if (sc.branches && sc.branches[currentBranchId]) {
-              const br = sc.branches[currentBranchId];
-              const copy = [...br.timeline];
-              const [moved] = copy.splice(sourceIndex, 1);
-              copy.splice(destinationIndex, 0, moved);
-              return {
-                ...sc,
-                branches: {
-                  ...sc.branches,
-                  [currentBranchId]: { ...br, timeline: copy }
-                }
-              };
+    updateScenes(scenes => scenes.map(sc => {
+      if (sc.id === currentSceneId) {
+        if (currentBranchId === 'main') {
+          const copy = [...sc.timeline];
+          const [moved] = copy.splice(sourceIndex, 1);
+          copy.splice(destinationIndex, 0, moved);
+          return { ...sc, timeline: copy };
+        } else if (sc.branches && sc.branches[currentBranchId]) {
+          const br = sc.branches[currentBranchId];
+          const copy = [...br.timeline];
+          const [moved] = copy.splice(sourceIndex, 1);
+          copy.splice(destinationIndex, 0, moved);
+          return {
+            ...sc,
+            branches: {
+              ...sc.branches,
+              [currentBranchId]: { ...br, timeline: copy }
             }
-          }
-          return sc;
-        })
-      })),
-      updatedAt: Date.now()
+          };
+        }
+      }
+      return sc;
     }));
   };
 
   const duplicateTimelineEventBase = (index: number) => {
-    let currentScene: any = null;
-    for (const chap of project.chapters) {
-      const s = chap.scenes.find(sc => sc.id === currentSceneId);
-      if (s) { currentScene = s; break; }
-    }
+    const scenes = getProjectScenes(project);
+    const currentScene = scenes.find(sc => sc.id === currentSceneId);
     if (!currentScene) return;
 
     const timeline: TimelineEvent[] = currentBranchId === 'main'
@@ -575,33 +558,26 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const newIndex = index + 1;
-    setProject(prev => ({
-      ...prev,
-      chapters: prev.chapters.map(chap => ({
-        ...chap,
-        scenes: chap.scenes.map(sc => {
-          if (sc.id === currentSceneId) {
-            if (currentBranchId === 'main') {
-              const copy = [...sc.timeline];
-              copy.splice(newIndex, 0, duplicated);
-              return { ...sc, timeline: copy };
-            } else if (sc.branches && sc.branches[currentBranchId]) {
-              const br = sc.branches[currentBranchId];
-              const copy = [...br.timeline];
-              copy.splice(newIndex, 0, duplicated);
-              return {
-                ...sc,
-                branches: {
-                  ...sc.branches,
-                  [currentBranchId]: { ...br, timeline: copy }
-                }
-              };
+    updateScenes(scs => scs.map(sc => {
+      if (sc.id === currentSceneId) {
+        if (currentBranchId === 'main') {
+          const copy = [...sc.timeline];
+          copy.splice(newIndex, 0, duplicated);
+          return { ...sc, timeline: copy };
+        } else if (sc.branches && sc.branches[currentBranchId]) {
+          const br = sc.branches[currentBranchId];
+          const copy = [...br.timeline];
+          copy.splice(newIndex, 0, duplicated);
+          return {
+            ...sc,
+            branches: {
+              ...sc.branches,
+              [currentBranchId]: { ...br, timeline: copy }
             }
-          }
-          return sc;
-        })
-      })),
-      updatedAt: Date.now()
+          };
+        }
+      }
+      return sc;
     }));
   };
 
@@ -627,8 +603,9 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return;
     }
 
-    const targetChapId = fromStart ? (project.chapters[0]?.id || '') : (currentChapterId || project.chapters[0]?.id || '');
-    const targetSceneId = fromStart ? (project.chapters[0]?.scenes[0]?.id || '') : (currentSceneId || project.chapters[0]?.scenes[0]?.id || '');
+    const scenes = getProjectScenes(project);
+    const targetSceneId = fromStart ? (scenes[0]?.id || '') : (currentSceneId || scenes[0]?.id || '');
+    const targetBranchId = fromStart ? 'main' : (currentBranchId || 'main');
 
     const initialVars: Record<string, boolean | number | string> = {};
     Object.values(project.variables || {}).forEach(v => {
@@ -636,9 +613,9 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     setGameState({
-      currentChapterId: targetChapId,
+      currentChapterId: '',
       currentSceneId: targetSceneId,
-      currentBranchId: 'main',
+      currentBranchId: targetBranchId,
       currentEventIndex: 0,
       playerName: project.defaultPlayerName || 'Protagonista',
       runtimeVariables: initialVars,
@@ -648,18 +625,15 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const jumpToScene = (sceneId: string) => {
-    for (const chap of project.chapters) {
-      const found = chap.scenes.find(s => s.id === sceneId);
-      if (found) {
-        setGameState(prev => ({
-          ...prev,
-          currentChapterId: chap.id,
-          currentSceneId: sceneId,
-          currentBranchId: 'main',
-          currentEventIndex: 0
-        }));
-        return;
-      }
+    const scenes = getProjectScenes(project);
+    const found = scenes.find(s => s.id === sceneId);
+    if (found) {
+      setGameState(prev => ({
+        ...prev,
+        currentSceneId: sceneId,
+        currentBranchId: 'main',
+        currentEventIndex: 0
+      }));
     }
   };
 
@@ -696,19 +670,8 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const advancePlayerEvent = () => {
     setGameState(prev => {
-      let currentScene: any = null;
-
-      for (const chap of project.chapters) {
-        const s = chap.scenes.find(sc => sc.id === prev.currentSceneId);
-        if (s) {
-          currentScene = s;
-          break;
-        }
-      }
-
-      if (!currentScene && project.chapters[0]?.scenes[0]) {
-        currentScene = project.chapters[0].scenes[0];
-      }
+      const scenes = getProjectScenes(project);
+      let currentScene = scenes.find(sc => sc.id === prev.currentSceneId) || scenes[0];
       if (!currentScene) return prev;
 
       const timeline: TimelineEvent[] = prev.currentBranchId === 'main'
@@ -754,18 +717,12 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // 3. Siguiente escena si se acabaron las viñetas
-      const allScenes: { chapId: string; scene: any }[] = [];
-      project.chapters.forEach(ch => {
-        ch.scenes.forEach(sc => allScenes.push({ chapId: ch.id, scene: sc }));
-      });
-
-      const currentIdx = allScenes.findIndex(item => item.scene.id === currentScene.id);
-      if (currentIdx !== -1 && currentIdx < allScenes.length - 1) {
-        const nextItem = allScenes[currentIdx + 1];
+      const currentIdx = scenes.findIndex(item => item.id === currentScene.id);
+      if (currentIdx !== -1 && currentIdx < scenes.length - 1) {
+        const nextScene = scenes[currentIdx + 1];
         return {
           ...prev,
-          currentChapterId: nextItem.chapId,
-          currentSceneId: nextItem.scene.id,
+          currentSceneId: nextScene.id,
           currentBranchId: 'main',
           currentEventIndex: 0,
           history: nextHistory,
@@ -816,18 +773,12 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const selectChoiceOption = (optionId: string) => {
-    let currentScene: any = null;
-    for (const chap of project.chapters) {
-      const s = chap.scenes.find(sc => sc.id === gameState.currentSceneId);
-      if (s) { currentScene = s; break; }
-    }
-    if (!currentScene && project.chapters[0]?.scenes[0]) {
-      currentScene = project.chapters[0].scenes[0];
-    }
+    const scenes = getProjectScenes(project);
+    const currentScene = scenes.find(sc => sc.id === gameState.currentSceneId) || scenes[0];
     if (!currentScene) return;
 
     const timeline: TimelineEvent[] = gameState.currentBranchId === 'main'
-      ? currentScene.timeline
+      ? (currentScene.timeline || [])
       : (currentScene.branches?.[gameState.currentBranchId]?.timeline || []);
 
     const currentEvent = timeline[gameState.currentEventIndex];
@@ -877,12 +828,12 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         exportProjectJson,
         importProjectJson,
         resetProjectToDefault,
-        currentChapterId,
-        setCurrentChapterId,
         currentSceneId,
         setCurrentSceneId,
         currentBranchId,
         setCurrentBranchId,
+        activeLibraryNovelId,
+        setActiveLibraryNovelId,
         addOrUpdateCharacter,
         deleteCharacter,
         createBranch,
