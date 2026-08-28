@@ -197,5 +197,6 @@ export interface CommunityAsset {
   authorName: string;
   authorId: string;
   createdAt: number;
+  isNsfw?: boolean;
   tags?: string[];
 }
