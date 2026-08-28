@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
-import { 
-  MagneticSlot, 
-  VerticalSlot, 
-  CharacterScale, 
-  CharacterAnimation 
-} from '../types';
+import { CharacterAnimation } from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
 const SLOT_POSITIONS_X: Record<string, string> = {
