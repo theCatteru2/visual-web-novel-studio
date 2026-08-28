@@ -330,7 +330,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ...prev,
         [novelId]: {
           ...existingEntry,
-          lastPlayedAt: Date.now>,
+          lastPlayedAt: Date.now(),
           saveSlots: {
             ...existingEntry.saveSlots,
             [slotId]: newSlot
