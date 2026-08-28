@@ -3,13 +3,20 @@ import { useNovel } from '../context/NovelContext';
 import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
-  mode: 'home' | 'editor' | 'player' | 'community' | 'profile';
-  setMode: (mode: 'home' | 'editor' | 'player' | 'community' | 'profile') => void;
+  mode: 'home' | 'editor' | 'player' | 'community' | 'profile' | 'library';
+  setMode: (mode: 'home' | 'editor' | 'player' | 'community' | 'profile' | 'library') => void;
   onOpenCharacterTree: () => void;
   onOpenPublishModal: () => void;
+  onTriggerEditorPlay?: () => void;
 }
 
-export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPublishModal }: NavbarProps) {
+export default function Navbar({
+  mode,
+  setMode,
+  onOpenCharacterTree,
+  onOpenPublishModal,
+  onTriggerEditorPlay
+}: NavbarProps) {
   const { project, setProject, exportProjectJson, importProjectJson, startPlaytest } = useNovel();
   const { user, profile, loginWithGoogle, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,8 +56,12 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPubli
   };
 
   const handleStartPlay = () => {
-    startPlaytest();
-    setMode('player');
+    if (onTriggerEditorPlay) {
+      onTriggerEditorPlay();
+    } else {
+      startPlaytest();
+      setMode('player');
+    }
   };
 
   return (
@@ -109,6 +120,24 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPubli
       {/* Controles de Acción Rápidos */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
         
+        {/* Biblioteca Privada */}
+        <button
+          onClick={() => setMode('library')}
+          title="Mi Biblioteca Privada (hasta 15 novelas)"
+          style={{
+            padding: isShortHeight ? '4px 6px' : '6px 8px',
+            background: mode === 'library' ? '#7c3aed' : '#161622',
+            border: `1px solid ${mode === 'library' ? '#a855f7' : '#2d2d3f'}`,
+            color: '#fff',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 10,
+            fontWeight: 600
+          }}
+        >
+          📚 <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Biblioteca</span>
+        </button>
+
         {/* Explorador de la Comunidad */}
         <button
           onClick={() => setMode('community')}
@@ -130,10 +159,10 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPubli
         {/* Publicar Novela */}
         <button
           onClick={onOpenPublishModal}
-          title="Publicar novela en el feed comunitario"
+          title="Publicar novela en la comunidad"
           style={{
             padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: '#7c3aed',
+            background: '#a855f7',
             border: 'none',
             color: '#fff',
             borderRadius: 6,
@@ -221,7 +250,7 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPubli
               boxShadow: '0 0 10px rgba(16,185,129,0.4)'
             }}
           >
-            ▶ JUGAR
+            ▶ PROBAR
           </button>
         ) : (
           <button
@@ -265,7 +294,7 @@ export default function Navbar({ mode, setMode, onOpenCharacterTree, onOpenPubli
               <img 
                 src={profile?.avatarUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`} 
                 alt="" 
-                style={{ width: 16, height: 16, borderRadius: '50%' }} 
+                style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} 
               />
               <span style={{ maxWidth: 50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {profile?.displayName || 'Perfil'}
