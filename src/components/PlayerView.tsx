@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
-import { MagneticSlot, VerticalSlot, CharacterScale, CharacterAnimation } from '../types';
+import { 
+  MagneticSlot, 
+  VerticalSlot, 
+  CharacterScale, 
+  CharacterAnimation,
+  StageCharacterInstance,
+  ChoiceOption 
+} from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
 const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
@@ -68,7 +75,6 @@ export default function PlayerView() {
     }
   }, [gameState.currentSceneId]);
 
-  // Obtención limpia de escenas (sin requerir capítulos)
   const scenesList = (project as any).scenes || project.chapters?.[0]?.scenes || [];
   const currentScene = scenesList.find((s: any) => s.id === gameState.currentSceneId) || scenesList[0];
 
@@ -79,7 +85,6 @@ export default function PlayerView() {
   const currentEvent = timeline?.[gameState.currentEventIndex];
   const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
-  // Controlador de Audio
   useEffect(() => {
     const eventBgm = currentEvent?.bgmUrl;
     if (eventBgm === 'stop') {
@@ -204,7 +209,6 @@ export default function PlayerView() {
           100% { transform: translate(-50%, 0); opacity: 1; }
         }
 
-        /* Ajustes automáticos para pantallas en horizontal o con poca altura */
         @media (max-height: 520px) and (orientation: landscape) {
           .vn-dialog-box {
             padding: 5px 12px !important;
@@ -343,13 +347,13 @@ export default function PlayerView() {
         </div>
 
         {/* Personajes en Escena */}
-        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map(inst => {
+        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: StageCharacterInstance) => {
           const charDef = project.characters[inst.characterId];
           if (!charDef) return null;
 
-          const slotX = SLOT_POSITIONS_X[inst.slot || 'center'] || '50%';
-          const slotY = SLOT_POSITIONS_Y[inst.verticalSlot || 'floor'] || '0%';
-          const scale = SCALE_PERCENTAGES[inst.scale || 'medium'] || '68%';
+          const slotX = SLOT_POSITIONS_X[inst.slot as MagneticSlot] || '50%';
+          const slotY = SLOT_POSITIONS_Y[inst.verticalSlot as VerticalSlot] || '0%';
+          const scale = SCALE_PERCENTAGES[inst.scale as CharacterScale] || '68%';
 
           const resolvedSprite = charDef.expressions[inst.expression] 
             || Object.values(charDef.expressions || {})[0] 
@@ -411,7 +415,7 @@ export default function PlayerView() {
               {parseTextTokens(currentEvent.prompt)}
             </div>
 
-            {currentEvent.options.map((option) => (
+            {currentEvent.options.map((option: ChoiceOption) => (
               <button
                 key={option.id}
                 onClick={(e) => {
