@@ -4,13 +4,11 @@ import {
   MagneticSlot, 
   VerticalSlot, 
   CharacterScale, 
-  CharacterAnimation,
-  StageCharacterInstance,
-  ChoiceOption 
+  CharacterAnimation 
 } from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
-const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
+const SLOT_POSITIONS_X: Record<string, string> = {
   'far-left': '12%',
   'left': '25%',
   'center-left': '38%',
@@ -20,7 +18,7 @@ const SLOT_POSITIONS_X: Record<MagneticSlot, string> = {
   'far-right': '88%'
 };
 
-const SLOT_POSITIONS_Y: Record<VerticalSlot, string> = {
+const SLOT_POSITIONS_Y: Record<string, string> = {
   'deep_sink': '-25%',
   'sink': '-12%',
   'floor': '0%',
@@ -30,7 +28,7 @@ const SLOT_POSITIONS_Y: Record<VerticalSlot, string> = {
   'sky': '48%'
 };
 
-const SCALE_PERCENTAGES: Record<CharacterScale, string> = {
+const SCALE_PERCENTAGES: Record<string, string> = {
   'small': '48%',
   'medium': '68%',
   'large': '88%',
@@ -82,7 +80,7 @@ export default function PlayerView() {
     ? (currentScene?.timeline || [])
     : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
 
-  const currentEvent = timeline?.[gameState.currentEventIndex];
+  const currentEvent = timeline?.[gameState.currentEventIndex] as any;
   const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
   useEffect(() => {
@@ -209,7 +207,7 @@ export default function PlayerView() {
           100% { transform: translate(-50%, 0); opacity: 1; }
         }
 
-        /* Diseño estándar para PC y pantallas grandes */
+        /* Estilo estándar en PC */
         .vn-dialog-box {
           padding: 14px 24px;
           bottom: 14px;
@@ -224,7 +222,7 @@ export default function PlayerView() {
           line-height: 1.45;
         }
 
-        /* Ajuste compacto para móviles en vertical (portrait) */
+        /* Móviles en vertical */
         @media (max-width: 640px) and (orientation: portrait) {
           .vn-dialog-box {
             padding: 8px 12px !important;
@@ -241,7 +239,7 @@ export default function PlayerView() {
           }
         }
 
-        /* Ajuste compacto para móviles en horizontal / landscape */
+        /* Móviles en horizontal */
         @media (max-height: 520px) and (orientation: landscape) {
           .vn-dialog-box {
             padding: 6px 14px !important;
@@ -380,15 +378,15 @@ export default function PlayerView() {
         </div>
 
         {/* Personajes en Escena */}
-        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: StageCharacterInstance) => {
+        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
           const charDef = project.characters[inst.characterId];
           if (!charDef) return null;
 
-          const slotX = SLOT_POSITIONS_X[inst.slot as MagneticSlot] || '50%';
-          const slotY = SLOT_POSITIONS_Y[inst.verticalSlot as VerticalSlot] || '0%';
-          const scale = SCALE_PERCENTAGES[inst.scale as CharacterScale] || '68%';
+          const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
+          const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+          const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-          const resolvedSprite = charDef.expressions[inst.expression] 
+          const resolvedSprite = charDef.expressions?.[inst.expression] 
             || Object.values(charDef.expressions || {})[0] 
             || charDef.avatarUrl;
 
@@ -404,7 +402,7 @@ export default function PlayerView() {
                 pointerEvents: 'none',
                 zIndex: 10,
                 height: scale,
-                filter: `brightness(${inst.brightness / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
+                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
                 animation: getAnimationKeyframes(inst.animation)
               }}
             >
@@ -448,7 +446,7 @@ export default function PlayerView() {
               {parseTextTokens(currentEvent.prompt)}
             </div>
 
-            {currentEvent.options.map((option: ChoiceOption) => (
+            {currentEvent.options?.map((option: any) => (
               <button
                 key={option.id}
                 onClick={(e) => {
@@ -653,7 +651,7 @@ export default function PlayerView() {
           >
             <div style={{ fontWeight: 800, borderBottom: '1px solid #444', paddingBottom: 4 }}>Registro de Diálogos</div>
             {gameState.history.length === 0 && <span style={{ color: '#666' }}>No hay diálogos previos.</span>}
-            {gameState.history.map((line, idx) => (
+            {gameState.history.map((line: string, idx: number) => (
               <div key={idx} style={{ lineHeight: 1.35 }}>{line}</div>
             ))}
           </div>
