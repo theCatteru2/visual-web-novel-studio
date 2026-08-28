@@ -33,10 +33,12 @@ export default function Navbar({
 
   const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [isShortHeight, setIsShortHeight] = useState(window.innerHeight < 500);
+  const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
 
   useEffect(() => {
     const handleResize = () => {
       setIsShortHeight(window.innerHeight < 500);
+      setIsPortrait(window.innerHeight > window.innerWidth);
     };
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
@@ -66,7 +68,6 @@ export default function Navbar({
     e.target.value = '';
   };
 
-  // Guardar cambios en la nube directamente desde la barra
   const handleSaveActiveNovel = async () => {
     if (!user) {
       alert('Tu proyecto está guardado en la memoria local del navegador. Inicia sesión para guardarlo en la nube.');
@@ -99,7 +100,6 @@ export default function Navbar({
     }
   };
 
-  // Crear novela desde cero con confirmación de seguridad
   const handleNewBlankNovel = () => {
     const confirmMsg = activeLibraryNovelId
       ? '¿Estás seguro de crear un proyecto nuevo? Asegúrate de haber guardado los cambios de la novela actual.'
@@ -121,270 +121,225 @@ export default function Navbar({
   };
 
   return (
-    <div style={{
-      height: isShortHeight ? 38 : 48,
-      minHeight: isShortHeight ? 38 : 48,
-      background: '#09090e',
-      borderBottom: '1px solid #1f1f2e',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 8px',
-      color: '#fff',
-      zIndex: 100,
-      boxSizing: 'border-box',
-      overflowX: 'auto',
-      overflowY: 'hidden',
-      whiteSpace: 'nowrap'
-    }}>
-      {/* Botón de Inicio + Título de la Novela */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 100, maxWidth: 220 }}>
-        <button
-          onClick={() => setMode('home')}
-          title="Menú de Inicio"
-          style={{
-            background: mode === 'home' ? 'rgba(56,189,248,0.2)' : 'rgba(255,255,255,0.06)',
-            border: `1px solid ${mode === 'home' ? '#38bdf8' : 'rgba(255,255,255,0.1)'}`,
-            borderRadius: 6,
-            padding: '3px 6px',
-            fontSize: isShortHeight ? 12 : 14,
-            cursor: 'pointer'
-          }}
-        >
-          🏠
-        </button>
-
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%' }}>
-          <input
-            type="text"
-            value={project.title}
-            onChange={(e) => setProject(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Título de la novela..."
+    <>
+      {/* =========================================================
+          BARRA SUPERIOR (Principal)
+      ========================================================= */}
+      <div style={{
+        height: isShortHeight ? 38 : 46,
+        minHeight: isShortHeight ? 38 : 46,
+        background: '#09090e',
+        borderBottom: '1px solid #1f1f2e',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 8px',
+        color: '#fff',
+        zIndex: 100,
+        boxSizing: 'border-box',
+        overflowX: isPortrait ? 'hidden' : 'auto',
+        overflowY: 'hidden',
+        whiteSpace: 'nowrap'
+      }}>
+        {/* Inicio + Título */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, maxWidth: isPortrait ? 200 : 260 }}>
+          <button
+            onClick={() => setMode('home')}
+            title="Menú de Inicio"
             style={{
-              background: 'transparent',
-              border: 'none',
-              borderBottom: '1px dashed rgba(255,255,255,0.2)',
-              color: '#f3f4f6',
-              fontWeight: 800,
-              fontSize: isShortHeight ? 11 : 13,
-              outline: 'none',
-              width: '100%',
-              padding: '1px 2px'
+              background: mode === 'home' ? 'rgba(56,189,248,0.2)' : 'rgba(255,255,255,0.06)',
+              border: `1px solid ${mode === 'home' ? '#38bdf8' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: 6,
+              padding: '3px 6px',
+              fontSize: 12,
+              cursor: 'pointer'
             }}
-          />
-          {activeLibraryNovelId && (
-            <span style={{ fontSize: 8, color: '#38bdf8', fontWeight: 700, lineHeight: 1 }}>
-              • Editando de Biblioteca
-            </span>
-          )}
+          >
+            🏠
+          </button>
+
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, width: '100%' }}>
+            <input
+              type="text"
+              value={project.title}
+              onChange={(e) => setProject(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="Título..."
+              style={{
+                background: 'transparent',
+                border: 'none',
+                borderBottom: '1px dashed rgba(255,255,255,0.2)',
+                color: '#f3f4f6',
+                fontWeight: 800,
+                fontSize: 12,
+                outline: 'none',
+                width: '100%',
+                padding: '1px 2px'
+              }}
+            />
+            {activeLibraryNovelId && (
+              <span style={{ fontSize: 8, color: '#38bdf8', fontWeight: 700, lineHeight: 1 }}>
+                • Biblioteca
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Controles de Acción */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-        
-        {/* Crear Nueva Novela */}
-        <button
-          onClick={handleNewBlankNovel}
-          title="Comenzar una novela desde cero"
-          style={{
-            padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: '#161622',
-            border: '1px solid #2d2d3f',
-            color: '#38bdf8',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10,
-            fontWeight: 700
-          }}
-        >
-          ✨ <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Nuevo</span>
-        </button>
+        {/* Botones de acción en la barra superior */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          
+          {/* En PC / Landscape se muestran todas las herramientas arriba */}
+          {!isPortrait && (
+            <>
+              <button
+                onClick={handleNewBlankNovel}
+                title="Comenzar una novela desde cero"
+                style={{ padding: '5px 8px', background: '#161622', border: '1px solid #2d2d3f', color: '#38bdf8', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
+              >
+                ✨ Nuevo
+              </button>
 
-        {/* Guardar Cambios (Directo en la nube si está enlazado) */}
-        <button
-          onClick={handleSaveActiveNovel}
-          disabled={isSavingCloud}
-          title={activeLibraryNovelId ? "Guardar cambios en tu biblioteca" : "Guardado automático local activo"}
-          style={{
-            padding: isShortHeight ? '4px 8px' : '6px 10px',
-            background: activeLibraryNovelId ? '#10b981' : '#161622',
-            border: activeLibraryNovelId ? 'none' : '1px solid #2d2d3f',
-            color: activeLibraryNovelId ? '#042f1f' : '#38bdf8',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10,
-            fontWeight: 800
-          }}
-        >
-          💾 {isSavingCloud ? 'Guardando...' : (activeLibraryNovelId ? 'Guardar Cambios' : 'Guardado Local')}
-        </button>
+              <button
+                onClick={handleSaveActiveNovel}
+                disabled={isSavingCloud}
+                title={activeLibraryNovelId ? "Guardar cambios en tu biblioteca" : "Guardado local activo"}
+                style={{
+                  padding: '5px 8px',
+                  background: activeLibraryNovelId ? '#10b981' : '#161622',
+                  border: activeLibraryNovelId ? 'none' : '1px solid #2d2d3f',
+                  color: activeLibraryNovelId ? '#042f1f' : '#38bdf8',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 800
+                }}
+              >
+                💾 {isSavingCloud ? 'Guardando...' : (activeLibraryNovelId ? 'Guardar' : 'Local')}
+              </button>
 
-        {/* Biblioteca Privada */}
-        <button
-          onClick={() => setMode('library')}
-          title="Abrir Mi Biblioteca Privada"
-          style={{
-            padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: mode === 'library' ? '#7c3aed' : '#161622',
-            border: `1px solid ${mode === 'library' ? '#a855f7' : '#2d2d3f'}`,
-            color: '#fff',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10,
-            fontWeight: 600
-          }}
-        >
-          📚 <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Biblioteca</span>
-        </button>
+              <button
+                onClick={() => setMode('library')}
+                title="Abrir Mi Biblioteca Privada"
+                style={{
+                  padding: '5px 8px',
+                  background: mode === 'library' ? '#7c3aed' : '#161622',
+                  border: `1px solid ${mode === 'library' ? '#a855f7' : '#2d2d3f'}`,
+                  color: '#fff',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 600
+                }}
+              >
+                📚 Biblioteca
+              </button>
 
-        {/* Explorador de la Comunidad */}
-        <button
-          onClick={() => setMode('community')}
-          title="Ver creaciones de la comunidad"
-          style={{
-            padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: mode === 'community' ? '#2563eb' : '#161622',
-            border: `1px solid ${mode === 'community' ? '#3b82f6' : '#2d2d3f'}`,
-            color: '#fff',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10,
-            fontWeight: 600
-          }}
-        >
-          🌐 <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Comunidad</span>
-        </button>
+              <button
+                onClick={() => setMode('community')}
+                title="Ver creaciones de la comunidad"
+                style={{
+                  padding: '5px 8px',
+                  background: mode === 'community' ? '#2563eb' : '#161622',
+                  border: `1px solid ${mode === 'community' ? '#3b82f6' : '#2d2d3f'}`,
+                  color: '#fff',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 600
+                }}
+              >
+                🌐 Comunidad
+              </button>
 
-        {/* Publicar Novela */}
-        <button
-          onClick={onOpenPublishModal}
-          title="Publicar novela en la comunidad"
-          style={{
-            padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: '#a855f7',
-            border: 'none',
-            color: '#fff',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10,
-            fontWeight: 700
-          }}
-        >
-          🚀 <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Publicar</span>
-        </button>
+              <button
+                onClick={onOpenPublishModal}
+                title="Publicar novela en la comunidad"
+                style={{ padding: '5px 8px', background: '#a855f7', border: 'none', color: '#fff', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
+              >
+                🚀 Publicar
+              </button>
 
-        {/* Personajes */}
-        <button
-          onClick={onOpenCharacterTree}
-          title="Fichas y Vínculos de Personajes"
-          style={{
-            padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: '#161622',
-            border: '1px solid #2d2d3f',
-            color: '#ddd',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10,
-            fontWeight: 600
-          }}
-        >
-          👥 <span style={{ display: isShortHeight || window.innerWidth < 480 ? 'none' : 'inline' }}>Personajes</span>
-        </button>
+              <button
+                onClick={onOpenCharacterTree}
+                title="Fichas y Vínculos de Personajes"
+                style={{ padding: '5px 8px', background: '#161622', border: '1px solid #2d2d3f', color: '#ddd', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 600 }}
+              >
+                👥 Personajes
+              </button>
 
-        {/* Exportar JSON (Claramente identificado) */}
-        <button
-          onClick={exportProjectJson}
-          title="Descargar copia de seguridad en archivo .json"
-          style={{
-            padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: '#161622',
-            border: '1px solid #2d2d3f',
-            color: '#aaa',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10
-          }}
-        >
-          📥 <span style={{ display: isShortHeight || window.innerWidth < 640 ? 'none' : 'inline' }}>Exportar JSON</span>
-        </button>
+              <button
+                onClick={exportProjectJson}
+                title="Descargar copia de seguridad en archivo .json"
+                style={{ padding: '5px 8px', background: '#161622', border: '1px solid #2d2d3f', color: '#aaa', borderRadius: 6, cursor: 'pointer', fontSize: 10 }}
+              >
+                📥 Exportar
+              </button>
 
-        {/* Importar JSON */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          title="Cargar archivo .json en el editor"
-          style={{
-            padding: isShortHeight ? '4px 6px' : '6px 8px',
-            background: '#161622',
-            border: '1px solid #2d2d3f',
-            color: '#aaa',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 10
-          }}
-        >
-          📂
-        </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                title="Cargar archivo .json"
+                style={{ padding: '5px 8px', background: '#161622', border: '1px solid #2d2d3f', color: '#aaa', borderRadius: 6, cursor: 'pointer', fontSize: 10 }}
+              >
+                📂
+              </button>
+            </>
+          )}
 
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept=".json"
-          style={{ display: 'none' }}
-        />
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".json"
+            style={{ display: 'none' }}
+          />
 
-        {/* Conmutador Editor / Probar */}
-        {mode === 'editor' ? (
-          <button
-            onClick={handleStartPlay}
-            style={{
-              padding: isShortHeight ? '4px 8px' : '6px 12px',
-              background: '#10b981',
-              color: '#052e16',
-              border: 'none',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 900,
-              fontSize: 10,
-              boxShadow: '0 0 10px rgba(16,185,129,0.4)'
-            }}
-          >
-            ▶ PROBAR
-          </button>
-        ) : (
-          <button
-            onClick={() => setMode('editor')}
-            style={{
-              padding: isShortHeight ? '4px 8px' : '6px 10px',
-              background: '#2563eb',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: 10
-            }}
-          >
-            ✏️ Editor
-          </button>
-        )}
+          {/* Conmutador Editor / Probar (Siempre visible) */}
+          {mode === 'editor' ? (
+            <button
+              onClick={handleStartPlay}
+              style={{
+                padding: '5px 10px',
+                background: '#10b981',
+                color: '#052e16',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 900,
+                fontSize: 11,
+                boxShadow: '0 0 10px rgba(16,185,129,0.4)'
+              }}
+            >
+              ▶ PROBAR
+            </button>
+          ) : (
+            <button
+              onClick={() => setMode('editor')}
+              style={{
+                padding: '5px 10px',
+                background: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 800,
+                fontSize: 11
+              }}
+            >
+              ✏️ Editor
+            </button>
+          )}
 
-        <div style={{ width: 1, height: 16, background: '#2d2d3f', margin: '0 2px' }} />
-
-        {/* Cuenta de Usuario */}
-        {user ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {/* Cuenta de Usuario */}
+          {user ? (
             <button
               onClick={() => setMode('profile')}
-              title="Ver y editar mi perfil"
+              title="Mi perfil"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
                 background: mode === 'profile' ? '#372254' : '#161622',
                 border: `1px solid ${mode === 'profile' ? '#a855f7' : '#2d2d3f'}`,
-                padding: '2px 4px',
+                padding: '3px 6px',
                 borderRadius: 6,
                 cursor: 'pointer',
                 color: '#fff',
@@ -396,28 +351,146 @@ export default function Navbar({
                 alt="" 
                 style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} 
               />
-              <span style={{ maxWidth: 50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {profile?.displayName || 'Perfil'}
-              </span>
+              {!isPortrait && (
+                <span style={{ maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {profile?.displayName || 'Perfil'}
+                </span>
+              )}
             </button>
+          ) : (
             <button 
-              onClick={logout} 
-              title="Cerrar sesión"
-              style={{ padding: '3px 5px', background: '#1c1c28', color: '#999', border: '1px solid #333', borderRadius: 4, cursor: 'pointer', fontSize: 9 }}
+              onClick={loginWithGoogle} 
+              style={{ padding: '4px 8px', background: '#ea4335', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
             >
-              Salir
+              Entrar
             </button>
-          </div>
-        ) : (
-          <button 
-            onClick={loginWithGoogle} 
-            style={{ padding: isShortHeight ? '4px 6px' : '5px 8px', background: '#ea4335', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700 }}
-          >
-            Entrar
-          </button>
-        )}
+          )}
 
+        </div>
       </div>
-    </div>
+
+      {/* =========================================================
+          BARRA INFERIOR FLOTANTE (Solo visible en Móvil Portrait)
+      ========================================================= */}
+      {isPortrait && mode !== 'player' && (
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 48,
+          background: 'rgba(9, 9, 14, 0.95)',
+          backdropFilter: 'blur(10px)',
+          borderTop: '1px solid #1f1f2e',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-around',
+          padding: '0 8px',
+          zIndex: 90,
+          boxSizing: 'border-box'
+        }}>
+          {/* Biblioteca */}
+          <button
+            onClick={() => setMode('library')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: mode === 'library' ? '#a855f7' : '#888',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              cursor: 'pointer',
+              fontSize: 9,
+              fontWeight: 700
+            }}
+          >
+            <span style={{ fontSize: 16 }}>📚</span>
+            <span>Biblioteca</span>
+          </button>
+
+          {/* Comunidad */}
+          <button
+            onClick={() => setMode('community')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: mode === 'community' ? '#38bdf8' : '#888',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              cursor: 'pointer',
+              fontSize: 9,
+              fontWeight: 700
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🌐</span>
+            <span>Comunidad</span>
+          </button>
+
+          {/* Guardar Cambios / Nube */}
+          <button
+            onClick={handleSaveActiveNovel}
+            disabled={isSavingCloud}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: activeLibraryNovelId ? '#10b981' : '#888',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              cursor: 'pointer',
+              fontSize: 9,
+              fontWeight: 700
+            }}
+          >
+            <span style={{ fontSize: 16 }}>💾</span>
+            <span>{isSavingCloud ? 'Guardando' : (activeLibraryNovelId ? 'Guardar' : 'Local')}</span>
+          </button>
+
+          {/* Personajes */}
+          <button
+            onClick={onOpenCharacterTree}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#888',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              cursor: 'pointer',
+              fontSize: 9,
+              fontWeight: 700
+            }}
+          >
+            <span style={{ fontSize: 16 }}>👥</span>
+            <span>Personajes</span>
+          </button>
+
+          {/* Publicar */}
+          <button
+            onClick={onOpenPublishModal}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#c084fc',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              cursor: 'pointer',
+              fontSize: 9,
+              fontWeight: 700
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🚀</span>
+            <span>Publicar</span>
+          </button>
+        </div>
+      )}
+    </>
   );
 }
