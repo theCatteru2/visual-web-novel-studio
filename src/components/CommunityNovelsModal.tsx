@@ -86,11 +86,20 @@ export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovel
     return true;
   });
 
-  const handlePlayDirectly = (novel: CommunityNovel) => {
-    setProject(novel.projectData);
-    startPlaytest();
-    onClose();
-  };
+  const { launchPlayer, importCommunityNovelToLibrary } = useNovel();
+  const { user } = useAuth();
+
+const handlePlayDirectly = (novel: CommunityNovel) => {
+  const canEdit = Boolean(novel.allowCommunityEdit || (user && user.uid === novel.authorId));
+  launchPlayer(novel.projectData, {
+    isEditorPlaytest: false,
+    canEdit,
+    novelId: novel.id,
+    fromStart: true
+  });
+  onPlayDirectly();
+  onClose();
+};
 
   const handleImportToLibrary = (novel: CommunityNovel) => {
     importCommunityNovelToLibrary(
