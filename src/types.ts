@@ -53,7 +53,7 @@ export interface ChoiceOption {
   jumpToBranchId?: string;
   jumpToEventIndex?: number;
   jumpToSceneId?: string;
-  jumpToMenuId?: string; // Salto hacia un Menú o Pantalla Final
+  jumpToMenuId?: string;
   variableChanges?: VariableChange[];
   affinityChanges?: { characterId: string; amount: number }[];
 }
@@ -61,7 +61,7 @@ export interface ChoiceOption {
 export interface DialogueEvent {
   type: 'dialogue';
   id: string;
-  speakerId: string; // ID de personaje, 'narrator' o 'none' (texto puro)
+  speakerId: string;
   text: string;
   backgroundUrl?: string;
   bgmUrl?: string;
@@ -70,7 +70,7 @@ export interface DialogueEvent {
   effect?: ScreenEffect;
   jumpToBranchId?: string;
   jumpToEventIndex?: number;
-  jumpToMenuId?: string; // Salto condicional hacia un Menú o Pantalla Final
+  jumpToMenuId?: string;
   jumpCondition?: BranchJumpCondition;
   condition?: VariableCondition;
 }
@@ -147,9 +147,6 @@ export interface ProjectAudioItem {
   type: 'bgm' | 'sfx';
 }
 
-// -------------------------------------------------------------
-// Tipos para Menús Personalizados y Pantallas Finales
-// -------------------------------------------------------------
 export type MenuElementType = 'text' | 'button' | 'card';
 export type MenuElementStyle = 'primary' | 'secondary' | 'danger' | 'glass' | 'title' | 'subtitle';
 
@@ -175,11 +172,8 @@ export interface MenuElement {
   customBgColor?: string;
   customBgImage?: string;
   variableChanges?: VariableChange[];
-  action?: {
-    type: 'start_game' | 'jump_to_scene' | 'jump_to_menu' | 'open_save_load' | 'restart';
-    targetSceneId?: string;
-    targetMenuId?: string;
-  };
+  action?: MenuElementAction; // 👈 Referencia directa a la interfaz completa
+  condition?: VariableCondition; // 👈 Soporte para condicionales
 }
 
 export interface MenuScreen {
@@ -216,7 +210,7 @@ export interface PlayerGameState {
   currentSceneId: string;
   currentBranchId: string;
   currentEventIndex: number;
-  currentMenuId?: string | null; // ID del menú activo en ejecución
+  currentMenuId?: string | null;
   playerName: string;
   runtimeVariables: Record<string, boolean | number | string>;
   runtimeCharacters: Record<string, Character>;
