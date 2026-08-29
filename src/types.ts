@@ -166,8 +166,13 @@ export interface MenuElement {
   id: string;
   type: MenuElementType;
   text: string;
+
+  x?: number;
+  y?: number;
+
   slotX: MagneticSlot;
   verticalSlot: VerticalSlot;
+
   styleVariant: MenuElementStyle;
   action?: MenuElementAction;
   condition?: VariableCondition;
