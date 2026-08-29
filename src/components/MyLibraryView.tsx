@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, getDocs, deleteDoc, doc, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, deleteDoc, doc, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNovel } from '../context/NovelContext';
@@ -28,8 +28,7 @@ export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublish
   const { 
     project, 
     loadProjectToEditor, 
-    launchPlayer, 
-    exportProjectJson, 
+    launchPlayer,  
     setActiveLibraryNovelId, 
     activeLibraryNovelId, 
     resetProjectToDefault 
