@@ -54,7 +54,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
 
   const [draggingElementId, setDraggingElementId] = useState<string | null>(null);
   const [resizingElementId, setResizingElementId] = useState<string | null>(null);
-  const [resizeStart, setResizeStart] = useState<{ startX: number; startWidth: number } | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
 
   const [activeHoverSlotX, setActiveHoverSlotX] = useState<MagneticSlot | null>(null);
   const [activeHoverSlotY, setActiveHoverSlotY] = useState<VerticalSlot | null>(null);
@@ -127,8 +127,10 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
       slotX: 'center',
       verticalSlot: 'ground',
       styleVariant: 'primary',
-      action: { type: 'start_game' }
-    };
+      action: { type: 'start_game' },
+      widthPercent: 32,
+      heightPercent: 9
+    } as any;
 
     const newScreen: MenuScreen = {
       id: newId,
@@ -156,7 +158,8 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
       verticalSlot: 'ground',
       styleVariant: type === 'button' ? 'primary' : 'subtitle',
       action: type === 'button' ? { type: 'start_game' } : undefined,
-      widthPercent: type === 'button' ? 30 : undefined
+      widthPercent: type === 'button' ? 30 : type === 'card' ? 35 : undefined,
+      heightPercent: type === 'button' ? 9 : type === 'card' ? 18 : undefined
     } as any;
 
     addOrUpdateMenuElement(currentScreen.id, newElem);
@@ -165,6 +168,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
 
   const handlePointerDown = (e: React.PointerEvent, element: MenuElement) => {
     e.stopPropagation();
+    e.preventDefault();
     if (!canvasRef.current || !currentScreen) return;
 
     setActiveEditingElemId(element.id);
@@ -175,13 +179,18 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
 
   const handleResizePointerDown = (e: React.PointerEvent, element: MenuElement) => {
     e.stopPropagation();
+    e.preventDefault();
     if (!canvasRef.current) return;
-    const currentW = (element as any).widthPercent || (element.type === 'button' ? 25 : 35);
+
+    const currentW = (element as any).widthPercent || (element.type === 'button' ? 30 : 35);
+    const currentH = (element as any).heightPercent || (element.type === 'button' ? 9 : 18);
 
     setResizingElementId(element.id);
     setResizeStart({
       startX: e.clientX,
-      startWidth: currentW
+      startY: e.clientY,
+      startW: currentW,
+      startH: currentH
     });
   };
 
@@ -191,13 +200,15 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
     if (rect.width <= 0 || rect.height <= 0) return;
 
     if (resizingElementId && resizeStart) {
-      const deltaX = e.clientX - resizeStart.startX;
-      const deltaPercent = (deltaX / rect.width) * 100;
-      const newWidth = Math.max(10, Math.min(90, Math.round(resizeStart.startWidth + deltaPercent)));
+      const deltaXPercent = ((e.clientX - resizeStart.startX) / rect.width) * 100;
+      const deltaYPercent = ((e.clientY - resizeStart.startY) / rect.height) * 100;
+
+      const newWidth = Math.max(10, Math.min(95, Math.round(resizeStart.startW + deltaXPercent)));
+      const newHeight = Math.max(5, Math.min(70, Math.round(resizeStart.startH + deltaYPercent)));
 
       const element = currentScreen.elements?.find(el => el.id === resizingElementId);
       if (element) {
-        updateElement(element, { widthPercent: newWidth } as any);
+        updateElement(element, { widthPercent: newWidth, heightPercent: newHeight } as any);
       }
       return;
     }
@@ -265,7 +276,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
     const customBg = el.customBgColor;
     const customColor = el.customTextColor;
     const bgImage = el.customBgImage;
-    const customWidth = (el as any).widthPercent ? `${(el as any).widthPercent}%` : undefined;
     const customFontSize = (el as any).fontSizePx ? `${(el as any).fontSizePx}px` : undefined;
 
     if (el.type === 'button') {
@@ -282,7 +292,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
       return {
         background: bgImage ? `url(${bgImage}) center/cover no-repeat` : baseBg,
         color: customColor || '#fff',
-        padding: '3% 5%',
         borderRadius: 8,
         fontSize: customFontSize || 'clamp(10px, 2.4cqw, 15px)',
         fontWeight: 800,
@@ -292,8 +301,12 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: customWidth || 'auto',
-        boxSizing: 'border-box'
+        width: '100%',
+        height: '100%',
+        padding: '0 8px',
+        boxSizing: 'border-box',
+        userSelect: 'none',
+        pointerEvents: 'none'
       };
     }
 
@@ -301,15 +314,20 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
       return {
         background: customBg || (el.styleVariant === 'glass' ? 'rgba(15,23,42,0.75)' : '#1e293b'),
         color: customColor || '#fff',
-        padding: '3% 5%',
         borderRadius: 8,
         fontSize: customFontSize || 'clamp(10px, 2.2cqw, 14px)',
         fontWeight: 700,
-        width: customWidth || 'auto',
-        minWidth: '20%',
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         textAlign: 'center',
         boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        padding: 6,
+        userSelect: 'none',
+        pointerEvents: 'none'
       };
     }
 
@@ -319,8 +337,14 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
       fontWeight: el.styleVariant === 'title' ? 900 : 600,
       textShadow: '0 2px 8px rgba(0,0,0,0.9)',
       whiteSpace: 'nowrap',
-      width: customWidth || 'auto',
-      textAlign: 'center'
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center',
+      userSelect: 'none',
+      pointerEvents: 'none'
     };
   };
 
@@ -364,16 +388,17 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
         }
         .canva-resize-handle {
           position: absolute;
-          right: -6px;
-          bottom: -6px;
-          width: 14px;
-          height: 14px;
+          right: -7px;
+          bottom: -7px;
+          width: 16px;
+          height: 16px;
           background: #38bdf8;
           border: 2px solid #fff;
-          border-radius: 50%;
-          cursor: se-resize;
-          z-index: 50;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+          border-radius: 4px;
+          cursor: nwse-resize;
+          z-index: 60;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+          touch-action: none;
         }
       `}</style>
 
@@ -568,7 +593,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                 })}
               </div>
 
-              {/* Crear Pantalla */}
               <div style={{ borderTop: '1px solid #1f1f2e', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <input
                   type="text"
@@ -772,6 +796,9 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                     const isSelected = activeEditingElemId === el.id;
                     const isDragging = draggingElementId === el.id;
 
+                    const widthVal = (el as any).widthPercent ? `${(el as any).widthPercent}%` : el.type === 'button' ? '30%' : 'auto';
+                    const heightVal = (el as any).heightPercent ? `${(el as any).heightPercent}%` : el.type === 'button' ? '9%' : 'auto';
+
                     return (
                       <div
                         key={el.id}
@@ -788,17 +815,18 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                           touchAction: 'none',
                           transition: isDragging || resizingElementId ? 'none' : 'left 0.15s ease, top 0.15s ease',
                           display: 'inline-flex',
-                          width: (el as any).widthPercent ? `${(el as any).widthPercent}%` : 'auto',
-                          justifyContent: 'center'
+                          width: widthVal,
+                          height: heightVal,
+                          justifyContent: 'center',
+                          alignItems: 'center'
                         }}
                       >
                         <div style={getElementStyle(el)}>{el.text}</div>
 
-                        {/* Canva Resize Handle */}
                         {isSelected && (
                           <div
                             className="canva-resize-handle"
-                            title="Arrastrar para cambiar ancho"
+                            title="Arrastrar para redimensionar ancho y alto"
                             onPointerDown={e => handleResizePointerDown(e, el)}
                           />
                         )}
@@ -874,7 +902,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                     </button>
                   </div>
 
-                  {/* Texto */}
                   <div>
                     <label style={{ fontSize: 10, color: '#aaa', display: 'block', marginBottom: 2 }}>Texto</label>
                     <input
@@ -893,21 +920,36 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                     />
                   </div>
 
-                  {/* Redimensionado Manual / Canva */}
+                  {/* Redimensionado 2D */}
                   <div style={{ background: '#131320', padding: 8, borderRadius: 8, border: '1px solid #232338', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <span style={{ fontSize: 10, color: '#38bdf8', fontWeight: 800 }}>📐 Dimensiones y Escala</span>
                     
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#aaa', marginBottom: 2 }}>
-                        <span>Ancho (% pantalla):</span>
-                        <span>{(activeElement as any).widthPercent || 'Auto'}</span>
+                        <span>Ancho (% lienzo):</span>
+                        <span>{(activeElement as any).widthPercent || '30'}%</span>
                       </div>
                       <input
                         type="range"
                         min={10}
-                        max={90}
+                        max={95}
                         value={(activeElement as any).widthPercent || 30}
                         onChange={e => updateElement(activeElement, { widthPercent: Number(e.target.value) } as any)}
+                        style={{ width: '100%', accentColor: '#38bdf8' }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#aaa', marginBottom: 2 }}>
+                        <span>Alto (% lienzo):</span>
+                        <span>{(activeElement as any).heightPercent || '9'}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={5}
+                        max={60}
+                        value={(activeElement as any).heightPercent || 9}
+                        onChange={e => updateElement(activeElement, { heightPercent: Number(e.target.value) } as any)}
                         style={{ width: '100%', accentColor: '#38bdf8' }}
                       />
                     </div>
@@ -920,7 +962,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                       <input
                         type="range"
                         min={9}
-                        max={40}
+                        max={36}
                         value={(activeElement as any).fontSizePx || 14}
                         onChange={e => updateElement(activeElement, { fontSizePx: Number(e.target.value) } as any)}
                         style={{ width: '100%', accentColor: '#a855f7' }}
@@ -1043,7 +1085,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                         <option value="restart">🔄 Reiniciar Partida</option>
                       </select>
 
-                      {/* SALTO DIRECTO A VÍA / RAMA + VIÑETA */}
                       {activeElement.action?.type === 'jump_to_scene' && (
                         <div style={{ display: 'flex', gap: 4, background: '#0a0a10', padding: 6, borderRadius: 6, border: '1px solid #2a2a3e' }}>
                           <div style={{ flex: 1.2 }}>
