@@ -31,6 +31,9 @@ export interface UserProfile {
   email?: string;
   avatarUrl?: string;
   role?: 'admin' | 'moderator' | 'user' | string;
+  bio?: string;
+  followersCount?: number;
+  followingCount?: number;
   createdAt?: number;
 }
 
@@ -50,6 +53,7 @@ export interface ChoiceOption {
   jumpToBranchId?: string;
   jumpToEventIndex?: number;
   jumpToSceneId?: string;
+  jumpToMenuId?: string; // Salto hacia un Menú o Pantalla Final
   variableChanges?: VariableChange[];
   affinityChanges?: { characterId: string; amount: number }[];
 }
@@ -57,15 +61,16 @@ export interface ChoiceOption {
 export interface DialogueEvent {
   type: 'dialogue';
   id: string;
-  speakerId: string;
+  speakerId: string; // ID de personaje, 'narrator' o 'none' (texto puro)
   text: string;
   backgroundUrl?: string;
-  bgmUrl?: string; // URL/Base64 del BGM o 'stop' para apagar
-  sfxUrl?: string; // Disparo único al entrar a la viñeta
+  bgmUrl?: string;
+  sfxUrl?: string;
   charactersOnStage: StageCharacterInstance[];
   effect?: ScreenEffect;
   jumpToBranchId?: string;
   jumpToEventIndex?: number;
+  jumpToMenuId?: string; // Salto condicional hacia un Menú o Pantalla Final
   jumpCondition?: BranchJumpCondition;
   condition?: VariableCondition;
 }
@@ -142,6 +147,41 @@ export interface ProjectAudioItem {
   type: 'bgm' | 'sfx';
 }
 
+// -------------------------------------------------------------
+// Tipos para Menús Personalizados y Pantallas Finales
+// -------------------------------------------------------------
+export type MenuElementType = 'text' | 'button' | 'card';
+export type MenuElementStyle = 'primary' | 'secondary' | 'danger' | 'glass' | 'title' | 'subtitle';
+
+export interface MenuElementAction {
+  type: 'jump_to_scene' | 'jump_to_menu' | 'open_save_load' | 'start_game' | 'restart';
+  targetSceneId?: string;
+  targetBranchId?: string;
+  targetEventIndex?: number;
+  targetMenuId?: string;
+  variableChanges?: VariableChange[];
+}
+
+export interface MenuElement {
+  id: string;
+  type: MenuElementType;
+  text: string;
+  slotX: MagneticSlot;
+  verticalSlot: VerticalSlot;
+  styleVariant: MenuElementStyle;
+  action?: MenuElementAction;
+  condition?: VariableCondition;
+}
+
+export interface MenuScreen {
+  id: string;
+  title: string;
+  type: 'start_menu' | 'end_screen' | 'custom_menu';
+  backgroundUrl: string;
+  bgmUrl?: string;
+  elements: MenuElement[];
+}
+
 export interface NovelProject {
   id: string;
   title: string;
@@ -157,6 +197,9 @@ export interface NovelProject {
   variables: Record<string, CustomVariable>;
   characters: Record<string, Character>;
   chapters: Chapter[];
+  startScreenType?: 'scene' | 'menu';
+  startMenuId?: string;
+  customScreens?: Record<string, MenuScreen>;
 }
 
 export interface PlayerGameState {
@@ -164,6 +207,7 @@ export interface PlayerGameState {
   currentSceneId: string;
   currentBranchId: string;
   currentEventIndex: number;
+  currentMenuId?: string | null; // ID del menú activo en ejecución
   playerName: string;
   runtimeVariables: Record<string, boolean | number | string>;
   runtimeCharacters: Record<string, Character>;
@@ -223,7 +267,6 @@ export interface CommunityNovel {
   allowCommunityEdit?: boolean;
 }
 
-// Metadatos de la sesión de juego activa en el reproductor
 export interface PlaySessionInfo {
   isEditorPlaytest: boolean;
   canEdit: boolean;
