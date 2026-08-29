@@ -4,7 +4,6 @@ import {
   MenuScreen,
   MenuElement,
   MenuElementType,
-  MenuElementStyle,
   MagneticSlot,
   VerticalSlot,
   VariableChange
@@ -59,7 +58,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
   const canvasRef = useRef<HTMLDivElement>(null);
   const btnBgInputRef = useRef<HTMLInputElement>(null);
 
-  // Unificación de lista de escenas (soporta chapters o scenes directas)
   const scenesList = (project as any).scenes || project.chapters?.flatMap((c: any) => c.scenes || []) || [];
 
   useEffect(() => {
@@ -1065,7 +1063,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                                 </button>
                               </div>
 
-                              {el.variableChanges?.map((ch, cIdx) => (
+                              {el.variableChanges?.map((ch: VariableChange, cIdx: number) => (
                                 <div key={cIdx} style={{ display: 'flex', gap: 2, alignItems: 'center', marginBottom: 3 }}>
                                   <select
                                     value={ch.variableName}
@@ -1111,7 +1109,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
 
                                   <button
                                     onClick={() => {
-                                      const copy = el.variableChanges!.filter((_, i) => i !== cIdx);
+                                      const copy = el.variableChanges!.filter((_: VariableChange, i: number) => i !== cIdx);
                                       updateElement(el, { variableChanges: copy });
                                     }}
                                     style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 9, cursor: 'pointer' }}
