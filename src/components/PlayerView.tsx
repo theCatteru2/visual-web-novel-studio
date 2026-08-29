@@ -860,7 +860,6 @@ export default function PlayerView() {
             {currentEvent?.type === 'dialogue' && (
               <div
                 className="vn-dialog-box"
-                onClick={handleScreenClick}
                 style={{
                   position: 'absolute',
                   left: '50%',
