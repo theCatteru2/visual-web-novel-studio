@@ -692,53 +692,65 @@ export default function PlayerView() {
         ) : (
           <>
             {/* 2. MODO ESCENA NARRATIVA REGULAR */}
-            {/* Personajes en Escena */}
-            {currentEvent?.type === 'dialogue' &&
-              currentEvent.charactersOnStage?.map((inst: any) => {
-                const charDef = activePlayProject.characters[inst.characterId];
-                if (!charDef) return null;
+           {/* Personajes en Escena */}
+{currentEvent?.type === 'dialogue' &&
+  currentEvent.charactersOnStage?.map((inst: any) => {
+    const charDef = activePlayProject.characters[inst.characterId];
+    if (!charDef) return null;
 
-                const slotX = STAGE_SLOTS_X[String(inst.slot || 'center')] || '50%';
-                const slotY = STAGE_SLOTS_Y[String(inst.verticalSlot || 'floor')] || '0%';
-                const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+    const slotX = STAGE_SLOTS_X[String(inst.slot || 'center')] || '50%';
+    const slotY = STAGE_SLOTS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+    const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-                const resolvedSprite =
-                  charDef.expressions?.[inst.expression] ||
-                  Object.values(charDef.expressions || {})[0] ||
-                  charDef.avatarUrl;
+    const resolvedSprite =
+      charDef.expressions?.[inst.expression] ||
+      Object.values(charDef.expressions || {})[0] ||
+      charDef.avatarUrl;
 
-                return (
-                  <div
-                    key={inst.characterId}
-                    style={{
-                      position: 'absolute',
-                      bottom: slotY,
-                      left: slotX,
-                      transform: 'translateX(-50%)',
-                      transition:
-                        'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
-                      pointerEvents: 'none',
-                      zIndex: 10,
-                      height: scale,
-                      filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
-                    }}
-                  >
-                    <img
-                      key={`img_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
-                      src={resolvedSprite}
-                      alt={charDef.name}
-                      draggable={false}
-                      style={{
-                        display: 'block',
-                        height: '100%',
-                        width: 'auto',
-                        objectFit: 'contain',
-                        animation: getAnimationKeyframes(inst.animation)
-                      }}
-                    />
-                  </div>
-                );
-              })}
+    const hasAnim = inst.animation && inst.animation !== 'none';
+
+    return (
+      <div
+        key={inst.characterId}
+        style={{
+          position: 'absolute',
+          bottom: slotY,
+          left: slotX,
+          transform: 'translateX(-50%)',
+          transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
+          pointerEvents: 'none',
+          zIndex: 10,
+          height: scale,
+          filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
+        }}
+      >
+        {/* Contenedor de Animación: Cambia su key SOLO cuando hay una animación para re-dispararla */}
+        <div
+          key={hasAnim ? `anim_${inst.animation}_${gameState.currentEventIndex}` : 'no_anim'}
+          style={{
+            height: '100%',
+            width: 'auto',
+            animation: getAnimationKeyframes(inst.animation)
+          }}
+        >
+          {/* Imagen persistente: Nunca parpadea porque su key depende solo del sprite */}
+          <img
+            key={`sprite_${inst.characterId}_${inst.expression}`}
+            src={resolvedSprite}
+            alt={charDef.name}
+            draggable={false}
+            decoding="sync"
+            style={{
+              display: 'block',
+              height: '100%',
+              width: 'auto',
+              objectFit: 'contain'
+            }}
+          />
+        </div>
+      </div>
+    );
+  })}
 
             {/* Opciones de Elección */}
             {currentEvent?.type === 'choice' && (
