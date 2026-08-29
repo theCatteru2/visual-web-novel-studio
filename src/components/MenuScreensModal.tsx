@@ -14,7 +14,7 @@ interface MenuScreensModalProps {
   onClose: () => void;
 }
 
-const SLOTS_X: { slot: MagneticSlot; label: string; xPercent: number }[] = [
+export const MENU_SLOTS_X: { slot: MagneticSlot; label: string; xPercent: number }[] = [
   { slot: 'far-left', label: 'Ext-Izq', xPercent: 12 },
   { slot: 'left', label: 'Izq', xPercent: 25 },
   { slot: 'center-left', label: 'C-Izq', xPercent: 38 },
@@ -24,8 +24,8 @@ const SLOTS_X: { slot: MagneticSlot; label: string; xPercent: number }[] = [
   { slot: 'far-right', label: 'Ext-Der', xPercent: 88 }
 ];
 
-const SLOTS_Y: { slot: VerticalSlot; label: string; yPercent: number }[] = [
-  { slot: 'sky', label: 'Arriba / Aire', yPercent: 18 },
+export const MENU_SLOTS_Y: { slot: VerticalSlot; label: string; yPercent: number }[] = [
+  { slot: 'sky', label: 'Arriba', yPercent: 18 },
   { slot: 'floating', label: 'Flotando', yPercent: 30 },
   { slot: 'elevated', label: 'Elevado', yPercent: 44 },
   { slot: 'ground', label: 'Centro', yPercent: 58 },
@@ -53,6 +53,9 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
   const [newScreenTitle, setNewScreenTitle] = useState('');
 
   const [draggingElementId, setDraggingElementId] = useState<string | null>(null);
+  const [resizingElementId, setResizingElementId] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ startX: number; startWidth: number } | null>(null);
+
   const [activeHoverSlotX, setActiveHoverSlotX] = useState<MagneticSlot | null>(null);
   const [activeHoverSlotY, setActiveHoverSlotY] = useState<VerticalSlot | null>(null);
 
@@ -62,11 +65,11 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
   const canvasRef = useRef<HTMLDivElement>(null);
   const btnBgInputRef = useRef<HTMLInputElement>(null);
 
-  // Obtener la escena activa directamente del proyecto
-  const activeScene = (project as any).scenes?.find((s: any) => s.id === currentSceneId) || 
-                      project.chapters?.[0]?.scenes?.find((s: any) => s.id === currentSceneId) ||
-                      (project as any).scenes?.[0] || 
-                      project.chapters?.[0]?.scenes?.[0];
+  const activeScene =
+    (project as any).scenes?.find((s: any) => s.id === currentSceneId) ||
+    project.chapters?.[0]?.scenes?.find((s: any) => s.id === currentSceneId) ||
+    (project as any).scenes?.[0] ||
+    project.chapters?.[0]?.scenes?.[0];
 
   const branchesMap = activeScene?.branches || {};
 
@@ -101,11 +104,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
   const handleCreateScreen = (type: 'start_menu' | 'end_screen' | 'custom_menu') => {
     const title =
       newScreenTitle.trim() ||
-      (type === 'start_menu'
-        ? 'Menú Principal'
-        : type === 'end_screen'
-        ? 'Pantalla Final'
-        : 'Nuevo Menú');
+      (type === 'start_menu' ? 'Menú Principal' : type === 'end_screen' ? 'Pantalla Final' : 'Nuevo Menú');
 
     const timestamp = Date.now();
     const newId = `screen_${timestamp}`;
@@ -156,8 +155,9 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
       slotX: 'center',
       verticalSlot: 'ground',
       styleVariant: type === 'button' ? 'primary' : 'subtitle',
-      action: type === 'button' ? { type: 'start_game' } : undefined
-    };
+      action: type === 'button' ? { type: 'start_game' } : undefined,
+      widthPercent: type === 'button' ? 30 : undefined
+    } as any;
 
     addOrUpdateMenuElement(currentScreen.id, newElem);
     setActiveEditingElemId(newElem.id);
@@ -173,49 +173,77 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
     setActiveHoverSlotY(element.verticalSlot || 'ground');
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!draggingElementId || !canvasRef.current || !currentScreen) return;
+  const handleResizePointerDown = (e: React.PointerEvent, element: MenuElement) => {
+    e.stopPropagation();
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const currentW = (element as any).widthPercent || (element.type === 'button' ? 25 : 35);
 
+    setResizingElementId(element.id);
+    setResizeStart({
+      startX: e.clientX,
+      startWidth: currentW
+    });
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!canvasRef.current || !currentScreen) return;
     const rect = canvasRef.current.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
 
-    const touchXPercent = ((e.clientX - rect.left) / rect.width) * 100;
-    const touchYPercent = ((e.clientY - rect.top) / rect.height) * 100;
+    if (resizingElementId && resizeStart) {
+      const deltaX = e.clientX - resizeStart.startX;
+      const deltaPercent = (deltaX / rect.width) * 100;
+      const newWidth = Math.max(10, Math.min(90, Math.round(resizeStart.startWidth + deltaPercent)));
 
-    let closestSlotX = SLOTS_X[0];
-    let minDistanceX = 999;
-    SLOTS_X.forEach(s => {
-      const dist = Math.abs(s.xPercent - touchXPercent);
-      if (dist < minDistanceX) {
-        minDistanceX = dist;
-        closestSlotX = s;
+      const element = currentScreen.elements?.find(el => el.id === resizingElementId);
+      if (element) {
+        updateElement(element, { widthPercent: newWidth } as any);
       }
-    });
+      return;
+    }
 
-    let closestSlotY = SLOTS_Y[0];
-    let minDistanceY = 999;
-    SLOTS_Y.forEach(s => {
-      const dist = Math.abs(s.yPercent - touchYPercent);
-      if (dist < minDistanceY) {
-        minDistanceY = dist;
-        closestSlotY = s;
+    if (draggingElementId) {
+      const touchXPercent = ((e.clientX - rect.left) / rect.width) * 100;
+      const touchYPercent = ((e.clientY - rect.top) / rect.height) * 100;
+
+      let closestSlotX = MENU_SLOTS_X[0];
+      let minDistanceX = 999;
+      MENU_SLOTS_X.forEach(s => {
+        const dist = Math.abs(s.xPercent - touchXPercent);
+        if (dist < minDistanceX) {
+          minDistanceX = dist;
+          closestSlotX = s;
+        }
+      });
+
+      let closestSlotY = MENU_SLOTS_Y[0];
+      let minDistanceY = 999;
+      MENU_SLOTS_Y.forEach(s => {
+        const dist = Math.abs(s.yPercent - touchYPercent);
+        if (dist < minDistanceY) {
+          minDistanceY = dist;
+          closestSlotY = s;
+        }
+      });
+
+      setActiveHoverSlotX(closestSlotX.slot);
+      setActiveHoverSlotY(closestSlotY.slot);
+
+      const element = currentScreen.elements?.find(el => el.id === draggingElementId);
+      if (element) {
+        updateElement(element, {
+          slotX: closestSlotX.slot,
+          verticalSlot: closestSlotY.slot
+        });
       }
-    });
-
-    setActiveHoverSlotX(closestSlotX.slot);
-    setActiveHoverSlotY(closestSlotY.slot);
-
-    const element = currentScreen.elements?.find(el => el.id === draggingElementId);
-    if (!element) return;
-
-    updateElement(element, {
-      slotX: closestSlotX.slot,
-      verticalSlot: closestSlotY.slot
-    });
+    }
   };
 
   const handlePointerUp = () => {
     setDraggingElementId(null);
+    setResizingElementId(null);
+    setResizeStart(null);
     setActiveHoverSlotX(null);
     setActiveHoverSlotY(null);
   };
@@ -238,6 +266,8 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
     const customBg = el.customBgColor;
     const customColor = el.customTextColor;
     const bgImage = el.customBgImage;
+    const customWidth = (el as any).widthPercent ? `${(el as any).widthPercent}%` : undefined;
+    const customFontSize = (el as any).fontSizePx ? `${(el as any).fontSizePx}px` : undefined;
 
     if (el.type === 'button') {
       const baseBg =
@@ -253,16 +283,18 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
       return {
         background: bgImage ? `url(${bgImage}) center/cover no-repeat` : baseBg,
         color: customColor || '#fff',
-        padding: '2% 5%',
+        padding: '3% 5%',
         borderRadius: 8,
-        fontSize: 'clamp(10px, 2.4cqw, 14px)',
+        fontSize: customFontSize || 'clamp(10px, 2.4cqw, 15px)',
         fontWeight: 800,
         whiteSpace: 'nowrap',
         boxShadow: '0 4px 14px rgba(0,0,0,0.6)',
         border: bgImage ? '1px solid rgba(255,255,255,0.4)' : 'none',
         display: 'inline-flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        width: customWidth || 'auto',
+        boxSizing: 'border-box'
       };
     }
 
@@ -272,26 +304,28 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
         color: customColor || '#fff',
         padding: '3% 5%',
         borderRadius: 8,
-        fontSize: 'clamp(10px, 2.2cqw, 13px)',
+        fontSize: customFontSize || 'clamp(10px, 2.2cqw, 14px)',
         fontWeight: 700,
+        width: customWidth || 'auto',
         minWidth: '20%',
         textAlign: 'center',
-        boxShadow: '0 4px 14px rgba(0,0,0,0.5)'
+        boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+        boxSizing: 'border-box'
       };
     }
 
     return {
       color: customColor || (el.styleVariant === 'title' ? '#38bdf8' : '#e2e8f0'),
-      fontSize: el.styleVariant === 'title' ? 'clamp(14px, 4cqw, 24px)' : 'clamp(11px, 2.4cqw, 15px)',
+      fontSize: customFontSize || (el.styleVariant === 'title' ? 'clamp(14px, 4cqw, 24px)' : 'clamp(11px, 2.4cqw, 15px)'),
       fontWeight: el.styleVariant === 'title' ? 900 : 600,
       textShadow: '0 2px 8px rgba(0,0,0,0.9)',
-      whiteSpace: 'nowrap'
+      whiteSpace: 'nowrap',
+      width: customWidth || 'auto',
+      textAlign: 'center'
     };
   };
 
   const activeElement = currentScreen?.elements?.find(e => e.id === activeEditingElemId);
-
-  // Viñetas según la vía/rama seleccionada en la acción
   const targetBranchId = activeElement?.action?.targetBranchId || 'main';
   const targetTimelineEvents = targetBranchId === 'main'
     ? (activeScene?.timeline || [])
@@ -329,6 +363,19 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
         .canvas-container {
           container-type: inline-size;
         }
+        .canva-resize-handle {
+          position: absolute;
+          right: -6px;
+          bottom: -6px;
+          width: 14px;
+          height: 14px;
+          background: #38bdf8;
+          border: 2px solid #fff;
+          border-radius: 50%;
+          cursor: se-resize;
+          z-index: 50;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+        }
       `}</style>
 
       <div className="menu-editor-root">
@@ -353,7 +400,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
             </div>
           </div>
 
-          {/* Selector de Pestaña Móvil */}
           {isPortrait && (
             <div style={{ display: 'flex', background: '#0a0a12', padding: 2, borderRadius: 6, border: '1px solid #2a2a3e' }}>
               <button
@@ -418,7 +464,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
 
         {/* CONTENIDO PRINCIPAL */}
         <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-          {/* PANEL IZQUIERDO: LISTA DE MENÚS */}
+          {/* PANEL IZQUIERDO */}
           {(!isPortrait || mobileTab === 'screens') && (
             <div
               style={{
@@ -523,7 +569,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                 })}
               </div>
 
-              {/* Crear Nueva Pantalla */}
+              {/* Crear Pantalla */}
               <div style={{ borderTop: '1px solid #1f1f2e', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <input
                   type="text"
@@ -687,7 +733,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                   {/* Guías Magnéticas */}
                   {draggingElementId && (
                     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 15 }}>
-                      {SLOTS_X.map(s => (
+                      {MENU_SLOTS_X.map(s => (
                         <div
                           key={s.slot}
                           style={{
@@ -701,7 +747,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                           }}
                         />
                       ))}
-                      {SLOTS_Y.map(s => (
+                      {MENU_SLOTS_Y.map(s => (
                         <div
                           key={s.slot}
                           style={{
@@ -719,8 +765,8 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                   )}
 
                   {currentScreen.elements?.map(el => {
-                    const slotXDef = SLOTS_X.find(s => s.slot === (el.slotX || 'center')) || SLOTS_X[3];
-                    const slotYDef = SLOTS_Y.find(s => s.slot === (el.verticalSlot || 'ground')) || SLOTS_Y[3];
+                    const slotXDef = MENU_SLOTS_X.find(s => s.slot === (el.slotX || 'center')) || MENU_SLOTS_X[3];
+                    const slotYDef = MENU_SLOTS_Y.find(s => s.slot === (el.verticalSlot || 'ground')) || MENU_SLOTS_Y[3];
                     const x = slotXDef.xPercent;
                     const y = slotYDef.yPercent;
 
@@ -741,10 +787,22 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                           outlineOffset: 3,
                           zIndex: isSelected ? 40 : 20,
                           touchAction: 'none',
-                          transition: isDragging ? 'none' : 'left 0.15s ease, top 0.15s ease'
+                          transition: isDragging || resizingElementId ? 'none' : 'left 0.15s ease, top 0.15s ease',
+                          display: 'inline-flex',
+                          width: (el as any).widthPercent ? `${(el as any).widthPercent}%` : 'auto',
+                          justifyContent: 'center'
                         }}
                       >
                         <div style={getElementStyle(el)}>{el.text}</div>
+
+                        {/* Canva Resize Handle */}
+                        {isSelected && (
+                          <div
+                            className="canva-resize-handle"
+                            title="Arrastrar para cambiar ancho"
+                            onPointerDown={e => handleResizePointerDown(e, el)}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -834,6 +892,41 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                         fontSize: 12
                       }}
                     />
+                  </div>
+
+                  {/* Redimensionado Manual / Canva */}
+                  <div style={{ background: '#131320', padding: 8, borderRadius: 8, border: '1px solid #232338', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: '#38bdf8', fontWeight: 800 }}>📐 Dimensiones y Escala</span>
+                    
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#aaa', marginBottom: 2 }}>
+                        <span>Ancho (% pantalla):</span>
+                        <span>{(activeElement as any).widthPercent || 'Auto'}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={90}
+                        value={(activeElement as any).widthPercent || 30}
+                        onChange={e => updateElement(activeElement, { widthPercent: Number(e.target.value) } as any)}
+                        style={{ width: '100%', accentColor: '#38bdf8' }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#aaa', marginBottom: 2 }}>
+                        <span>Tamaño de Fuente (px):</span>
+                        <span>{(activeElement as any).fontSizePx ? `${(activeElement as any).fontSizePx}px` : 'Auto'}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={9}
+                        max={40}
+                        value={(activeElement as any).fontSizePx || 14}
+                        onChange={e => updateElement(activeElement, { fontSizePx: Number(e.target.value) } as any)}
+                        style={{ width: '100%', accentColor: '#a855f7' }}
+                      />
+                    </div>
                   </div>
 
                   {/* Color y Fondo */}
@@ -1164,7 +1257,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                 </div>
               ) : (
                 <div style={{ fontSize: 11, color: '#888', textAlign: 'center', padding: '30px 10px' }}>
-                  Toca un elemento en el lienzo para editar sus propiedades o acciones.
+                  Toca un elemento en el lienzo para editar sus propiedades o redimensionarlo.
                 </div>
               )}
             </div>
