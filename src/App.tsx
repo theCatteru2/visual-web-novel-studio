@@ -15,7 +15,7 @@ import MyLibraryView from './components/MyLibraryView';
 import { NovelProject } from './types';
 
 function MainStudio() {
-  const { setProject, startPlaytest } = useNovel();
+  const { setEditingProject, launchPlayer, startPlaytest } = useNovel();
 
   const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile' | 'library'>('home');
   const [isCharTreeOpen, setIsCharTreeOpen] = useState(false);
@@ -30,8 +30,12 @@ function MainStudio() {
         if (snap.exists()) {
           const data = snap.data();
           if (data.projectData) {
-            setProject(data.projectData);
-            startPlaytest(undefined, true);
+            launchPlayer(data.projectData, {
+              isEditorPlaytest: false,
+              canEdit: Boolean(data.allowCommunityEdit),
+              novelId: privateNovelId,
+              fromStart: true
+            });
             setMode('player');
           }
         }
@@ -89,7 +93,7 @@ function MainStudio() {
             onOpenEditor={() => setMode('editor')}
             onPlayNovel={() => setMode('player')}
             onOpenPublishModal={(proj: NovelProject) => {
-              setProject(proj);
+              setEditingProject(proj);
               setIsPublishOpen(true);
             }}
           />
