@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
-import { CharacterAnimation, MenuElement, VariableCondition } from '../types';
+import {
+  CharacterAnimation,
+  MenuElement,
+  VariableCondition
+} from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
 const SLOT_POSITIONS_X: Record<string, string> = {
@@ -31,17 +35,17 @@ const SCALE_PERCENTAGES: Record<string, string> = {
 };
 
 export default function PlayerView() {
-  const { 
-    activePlayProject, 
-    gameState, 
-    advancePlayerEvent, 
-    selectChoiceOption, 
+  const {
+    activePlayProject,
+    gameState,
+    advancePlayerEvent,
+    selectChoiceOption,
     jumpToScene,
     jumpToMenu,
     applyVariableChanges,
-    parseTextTokens, 
-    setPlayerName, 
-    startPlaytest 
+    parseTextTokens,
+    setPlayerName,
+    startPlaytest
   } = useNovel();
 
   const [showHistory, setShowHistory] = useState(false);
@@ -70,10 +74,18 @@ export default function PlayerView() {
   }, []);
 
   const [askingName, setAskingName] = useState(false);
-  const [tempPlayerName, setTempPlayerName] = useState(gameState.playerName || activePlayProject.defaultPlayerName || '');
+  const [tempPlayerName, setTempPlayerName] = useState(
+    gameState.playerName || activePlayProject.defaultPlayerName || ''
+  );
 
   useEffect(() => {
-    if (activePlayProject.askPlayerName && !gameState.playerName && gameState.currentEventIndex === 0 && gameState.history.length === 0 && !gameState.currentMenuId) {
+    if (
+      activePlayProject.askPlayerName &&
+      !gameState.playerName &&
+      gameState.currentEventIndex === 0 &&
+      gameState.history.length === 0 &&
+      !gameState.currentMenuId
+    ) {
       setAskingName(true);
     }
   }, [activePlayProject.askPlayerName, gameState.currentMenuId]);
@@ -84,21 +96,26 @@ export default function PlayerView() {
     }
   }, [gameState.currentSceneId, gameState.currentMenuId]);
 
-  const activeMenuScreen = gameState.currentMenuId 
-    ? activePlayProject.customScreens?.[gameState.currentMenuId] 
+  const activeMenuScreen = gameState.currentMenuId
+    ? activePlayProject.customScreens?.[gameState.currentMenuId]
     : null;
 
-  const scenesList = (activePlayProject as any).scenes || activePlayProject.chapters?.[0]?.scenes || [];
-  const currentScene = scenesList.find((s: any) => s.id === gameState.currentSceneId) || scenesList[0];
+  const scenesList =
+    (activePlayProject as any).scenes ||
+    activePlayProject.chapters?.flatMap((c: any) => c.scenes || []) ||
+    [];
+  const currentScene =
+    scenesList.find((s: any) => s.id === gameState.currentSceneId) || scenesList[0];
 
-  const timeline = gameState.currentBranchId === 'main'
-    ? (currentScene?.timeline || [])
-    : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
+  const timeline =
+    gameState.currentBranchId === 'main'
+      ? currentScene?.timeline || []
+      : currentScene?.branches?.[gameState.currentBranchId]?.timeline || [];
 
   const currentEvent = timeline?.[gameState.currentEventIndex] as any;
-  const effectiveBgUrl = activeMenuScreen 
-    ? activeMenuScreen.backgroundUrl 
-    : (currentEvent?.backgroundUrl || currentScene?.backgroundUrl);
+  const effectiveBgUrl = activeMenuScreen
+    ? activeMenuScreen.backgroundUrl
+    : currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
   // Typewriter
   useEffect(() => {
@@ -135,7 +152,12 @@ export default function PlayerView() {
         typewriterTimerRef.current = null;
       }
     };
-  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId, gameState.currentMenuId]);
+  }, [
+    gameState.currentEventIndex,
+    gameState.currentSceneId,
+    gameState.currentBranchId,
+    gameState.currentMenuId
+  ]);
 
   // Audio
   useEffect(() => {
@@ -165,7 +187,12 @@ export default function PlayerView() {
       sfxAudioRef.current.currentTime = 0;
       sfxAudioRef.current.play().catch(() => {});
     }
-  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId, gameState.currentMenuId]);
+  }, [
+    gameState.currentEventIndex,
+    gameState.currentSceneId,
+    gameState.currentBranchId,
+    gameState.currentMenuId
+  ]);
 
   useEffect(() => {
     return () => {
@@ -180,10 +207,15 @@ export default function PlayerView() {
     };
   }, []);
 
-  const hasSpeaker = currentEvent?.type === 'dialogue' && currentEvent.speakerId && currentEvent.speakerId !== 'none';
-  const speakerChar = hasSpeaker && currentEvent.speakerId !== 'narrator'
-    ? gameState.runtimeCharacters[currentEvent.speakerId] || activePlayProject.characters[currentEvent.speakerId]
-    : null;
+  const hasSpeaker =
+    currentEvent?.type === 'dialogue' &&
+    currentEvent.speakerId &&
+    currentEvent.speakerId !== 'none';
+  const speakerChar =
+    hasSpeaker && currentEvent.speakerId !== 'narrator'
+      ? gameState.runtimeCharacters[currentEvent.speakerId] ||
+        activePlayProject.characters[currentEvent.speakerId]
+      : null;
 
   const visibleVariables = Object.entries(gameState.runtimeVariables || {}).filter(([key]) => {
     return activePlayProject.variables?.[key]?.isVisibleInHUD === true;
@@ -227,11 +259,12 @@ export default function PlayerView() {
   };
 
   const handleMenuElementClick = (element: MenuElement) => {
-    if (!element.action) return;
-
-    if (element.action.variableChanges && element.action.variableChanges.length > 0) {
-      applyVariableChanges(element.action.variableChanges, gameState.runtimeVariables);
+    const changes = element.action?.variableChanges || element.variableChanges;
+    if (changes && changes.length > 0) {
+      applyVariableChanges(changes, gameState.runtimeVariables);
     }
+
+    if (!element.action) return;
 
     switch (element.action.type) {
       case 'start_game':
@@ -292,83 +325,80 @@ export default function PlayerView() {
     }
   };
 
-  const getElementStyle = (variant: string) => {
-    switch (variant) {
-      case 'title':
-        return {
-          fontSize: isPortrait ? 20 : 28,
-          fontWeight: 900,
-          color: '#38bdf8',
-          textShadow: '0 4px 16px rgba(0,0,0,0.9), 0 0 20px rgba(56,189,248,0.4)',
-          background: 'none',
-          border: 'none',
-          textAlign: 'center' as const
-        };
-      case 'subtitle':
-        return {
-          fontSize: isPortrait ? 13 : 16,
-          fontWeight: 600,
-          color: '#cbd5e1',
-          textShadow: '0 2px 8px rgba(0,0,0,0.8)',
-          background: 'none',
-          border: 'none',
-          textAlign: 'center' as const
-        };
-      case 'danger':
-        return {
-          background: '#dc2626',
-          color: '#fff',
-          border: '1px solid #ef4444',
-          borderRadius: 8,
-          padding: isPortrait ? '8px 14px' : '10px 20px',
-          fontWeight: 800,
-          fontSize: isPortrait ? 12 : 14,
-          cursor: 'pointer',
-          boxShadow: '0 4px 16px rgba(220,38,38,0.4)'
-        };
-      case 'glass':
-        return {
-          background: 'rgba(15, 23, 42, 0.75)',
-          backdropFilter: 'blur(10px)',
-          color: '#f8fafc',
-          border: '1px solid rgba(255,255,255,0.2)',
-          borderRadius: 8,
-          padding: isPortrait ? '8px 14px' : '10px 20px',
-          fontWeight: 700,
-          fontSize: isPortrait ? 12 : 14,
-          cursor: 'pointer',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
-        };
-      case 'secondary':
-        return {
-          background: '#1e293b',
-          color: '#e2e8f0',
-          border: '1px solid #334155',
-          borderRadius: 8,
-          padding: isPortrait ? '8px 14px' : '10px 20px',
-          fontWeight: 700,
-          fontSize: isPortrait ? 12 : 14,
-          cursor: 'pointer',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.4)'
-        };
-      case 'primary':
-      default:
-        return {
-          background: '#2563eb',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 8,
-          padding: isPortrait ? '8px 16px' : '10px 24px',
-          fontWeight: 800,
-          fontSize: isPortrait ? 12 : 14,
-          cursor: 'pointer',
-          boxShadow: '0 4px 18px rgba(37,99,235,0.5)'
-        };
+  const getElementStyle = (el: MenuElement): React.CSSProperties => {
+    const customBg = el.customBgColor;
+    const customColor = el.customTextColor;
+    const bgImage = el.customBgImage;
+
+    if (el.type === 'button') {
+      const baseBg =
+        customBg ||
+        (el.styleVariant === 'danger'
+          ? '#dc2626'
+          : el.styleVariant === 'glass'
+          ? 'rgba(15, 23, 42, 0.75)'
+          : el.styleVariant === 'secondary'
+          ? '#1e293b'
+          : '#2563eb');
+
+      return {
+        background: bgImage ? `url(${bgImage}) center/cover no-repeat` : baseBg,
+        color: customColor || '#fff',
+        border: bgImage
+          ? '1px solid rgba(255,255,255,0.3)'
+          : el.styleVariant === 'danger'
+          ? '1px solid #ef4444'
+          : el.styleVariant === 'glass'
+          ? '1px solid rgba(255,255,255,0.2)'
+          : 'none',
+        backdropFilter: el.styleVariant === 'glass' ? 'blur(10px)' : undefined,
+        borderRadius: 8,
+        padding: isPortrait ? '8px 16px' : '10px 24px',
+        fontWeight: 800,
+        fontSize: isPortrait ? 12 : 14,
+        cursor: 'pointer',
+        boxShadow: '0 4px 18px rgba(0,0,0,0.4)',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        whiteSpace: 'nowrap'
+      };
     }
+
+    if (el.type === 'card') {
+      return {
+        background:
+          customBg ||
+          (el.styleVariant === 'glass' ? 'rgba(15, 23, 42, 0.75)' : '#1e293b'),
+        backdropFilter: el.styleVariant === 'glass' ? 'blur(10px)' : undefined,
+        color: customColor || '#e2e8f0',
+        border: '1px solid rgba(255,255,255,0.15)',
+        borderRadius: 8,
+        padding: isPortrait ? '8px 14px' : '10px 20px',
+        fontWeight: 700,
+        fontSize: isPortrait ? 12 : 14,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+        textAlign: 'center'
+      };
+    }
+
+    return {
+      fontSize:
+        el.styleVariant === 'title' ? (isPortrait ? 20 : 28) : isPortrait ? 13 : 16,
+      fontWeight: el.styleVariant === 'title' ? 900 : 600,
+      color:
+        customColor ||
+        (el.styleVariant === 'title' ? '#38bdf8' : '#cbd5e1'),
+      textShadow: '0 4px 16px rgba(0,0,0,0.9), 0 0 20px rgba(56,189,248,0.4)',
+      background: 'none',
+      border: 'none',
+      textAlign: 'center',
+      whiteSpace: 'nowrap'
+    };
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       style={{
         position: 'relative',
@@ -386,15 +416,15 @@ export default function PlayerView() {
     >
       <style>{`
         @keyframes jumpAnim {
-          0% { transform: translateY(0); }
-          50% { transform: translateY(-25px); }
-          100% { transform: translateY(0); }
+          0% { transform: translate(-50%, 0); }
+          50% { transform: translate(-50%, -25px); }
+          100% { transform: translate(-50%, 0); }
         }
 
         @keyframes shakeAnim {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-8px); }
-          75% { transform: translateX(8px); }
+          0%, 100% { transform: translate(-50%, 0); }
+          25% { transform: translate(-55%, 0); }
+          75% { transform: translate(-45%, 0); }
         }
 
         @keyframes fadeInAnim {
@@ -403,8 +433,8 @@ export default function PlayerView() {
         }
 
         @keyframes slideInAnim {
-          0% { transform: translateX(-30px); opacity: 0; }
-          100% { transform: translateX(0); opacity: 1; }
+          0% { transform: translate(-70%, 0); opacity: 0; }
+          100% { transform: translate(-50%, 0); opacity: 1; }
         }
 
         .vn-dialog-box {
@@ -459,7 +489,7 @@ export default function PlayerView() {
       `}</style>
 
       {/* Lienzo del Juego */}
-      <div 
+      <div
         onClick={handleScreenClick}
         style={{
           position: 'relative',
@@ -477,12 +507,12 @@ export default function PlayerView() {
           boxShadow: '0 10px 40px rgba(0,0,0,0.85)',
           border: isPortrait ? 'none' : '1px solid rgba(255,255,255,0.12)',
           userSelect: 'none',
-          cursor: activeMenuScreen ? 'default' : (currentEvent ? 'pointer' : 'default'),
+          cursor: activeMenuScreen ? 'default' : currentEvent ? 'pointer' : 'default',
           flexShrink: 0
         }}
       >
         {/* Barra Superior con Controles */}
-        <div 
+        <div
           style={{
             position: 'absolute',
             top: isPortrait ? 6 : 8,
@@ -519,7 +549,10 @@ export default function PlayerView() {
 
           <div style={{ display: 'flex', gap: 5 }}>
             <button
-              onClick={(e) => { e.stopPropagation(); setShowSaveLoad(true); }}
+              onClick={e => {
+                e.stopPropagation();
+                setShowSaveLoad(true);
+              }}
               title="Guardar / Cargar Partida"
               style={{
                 background: 'rgba(16, 185, 129, 0.9)',
@@ -537,7 +570,10 @@ export default function PlayerView() {
 
             {!activeMenuScreen && (
               <button
-                onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
+                onClick={e => {
+                  e.stopPropagation();
+                  setShowHistory(prev => !prev);
+                }}
                 title="Historial de Diálogos"
                 style={{
                   background: 'rgba(20, 20, 28, 0.85)',
@@ -554,7 +590,7 @@ export default function PlayerView() {
             )}
 
             <button
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 setIsLargeScreenMode(prev => !prev);
                 toggleFullScreen();
@@ -583,31 +619,26 @@ export default function PlayerView() {
               if (!checkCondition(el.condition)) return null;
 
               const slotX = SLOT_POSITIONS_X[String(el.slotX || 'center')] || '50%';
-              const slotY = SLOT_POSITIONS_Y[String(el.verticalSlot || 'floor')] || '0%';
-              const style = getElementStyle(el.styleVariant);
+              const slotY = SLOT_POSITIONS_Y[String(el.verticalSlot || 'ground')] || '12%';
+              const style = getElementStyle(el);
 
               return (
                 <div
                   key={el.id}
                   style={{
                     position: 'absolute',
-                    bottom: slotY,
+                    top: slotY,
                     left: slotX,
-                    transform: 'translate(-50%, 50%)',
+                    transform: 'translate(-50%, -50%)',
                     zIndex: 30
                   }}
                 >
                   {el.type === 'button' ? (
-                    <button
-                      onClick={() => handleMenuElementClick(el)}
-                      style={style}
-                    >
+                    <button onClick={() => handleMenuElementClick(el)} style={style}>
                       {parseTextTokens(el.text)}
                     </button>
                   ) : (
-                    <div style={style}>
-                      {parseTextTokens(el.text)}
-                    </div>
+                    <div style={style}>{parseTextTokens(el.text)}</div>
                   )}
                 </div>
               );
@@ -617,53 +648,55 @@ export default function PlayerView() {
           <>
             {/* 2. MODO ESCENA NARRATIVA REGULAR */}
             {/* Personajes en Escena */}
-            {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
-              const charDef = activePlayProject.characters[inst.characterId];
-              if (!charDef) return null;
+            {currentEvent?.type === 'dialogue' &&
+              currentEvent.charactersOnStage?.map((inst: any) => {
+                const charDef = activePlayProject.characters[inst.characterId];
+                if (!charDef) return null;
 
-              const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
-              const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
-              const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+                const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
+                const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+                const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-              const resolvedSprite =
-                charDef.expressions?.[inst.expression] ||
-                Object.values(charDef.expressions || {})[0] ||
-                charDef.avatarUrl;
+                const resolvedSprite =
+                  charDef.expressions?.[inst.expression] ||
+                  Object.values(charDef.expressions || {})[0] ||
+                  charDef.avatarUrl;
 
-              return (
-                <div
-                  key={inst.characterId}
-                  style={{
-                    position: 'absolute',
-                    bottom: slotY,
-                    left: slotX,
-                    transform: 'translateX(-50%)',
-                    transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
-                    pointerEvents: 'none',
-                    zIndex: 10,
-                    height: scale,
-                    filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
-                  }}
-                >
-                  <img
-                    src={resolvedSprite}
-                    alt={charDef.name}
-                    draggable={false}
+                return (
+                  <div
+                    key={inst.characterId}
                     style={{
-                      display: 'block',
-                      height: '100%',
-                      width: 'auto',
-                      objectFit: 'contain',
-                      animation: getAnimationKeyframes(inst.animation)
+                      position: 'absolute',
+                      bottom: slotY,
+                      left: slotX,
+                      transform: 'translateX(-50%)',
+                      transition:
+                        'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
+                      pointerEvents: 'none',
+                      zIndex: 10,
+                      height: scale,
+                      filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
                     }}
-                  />
-                </div>
-              );
-            })}
+                  >
+                    <img
+                      src={resolvedSprite}
+                      alt={charDef.name}
+                      draggable={false}
+                      style={{
+                        display: 'block',
+                        height: '100%',
+                        width: 'auto',
+                        objectFit: 'contain',
+                        animation: getAnimationKeyframes(inst.animation)
+                      }}
+                    />
+                  </div>
+                );
+              })}
 
             {/* Opciones de Elección */}
             {currentEvent?.type === 'choice' && (
-              <div 
+              <div
                 className="vn-choice-container"
                 style={{
                   position: 'absolute',
@@ -678,23 +711,25 @@ export default function PlayerView() {
                   zIndex: 35
                 }}
               >
-                <div style={{
-                  background: 'rgba(15, 15, 22, 0.96)',
-                  color: '#fff',
-                  padding: isPortrait ? '6px 10px' : '8px 14px',
-                  borderRadius: 8,
-                  textAlign: 'center',
-                  fontSize: isPortrait ? 12 : 13,
-                  fontWeight: 800,
-                  border: '1.5px solid #3b82f6'
-                }}>
+                <div
+                  style={{
+                    background: 'rgba(15, 15, 22, 0.96)',
+                    color: '#fff',
+                    padding: isPortrait ? '6px 10px' : '8px 14px',
+                    borderRadius: 8,
+                    textAlign: 'center',
+                    fontSize: isPortrait ? 12 : 13,
+                    fontWeight: 800,
+                    border: '1.5px solid #3b82f6'
+                  }}
+                >
                   {parseTextTokens(currentEvent.prompt)}
                 </div>
 
                 {currentEvent.options?.map((option: any) => (
                   <button
                     key={option.id}
-                    onClick={(e) => {
+                    onClick={e => {
                       e.stopPropagation();
                       selectChoiceOption(option.id);
                     }}
@@ -717,9 +752,9 @@ export default function PlayerView() {
               </div>
             )}
 
-            {/* Caja de Diálogo con Soporte de Texto Puro / Sin Hablante */}
+            {/* Caja de Diálogo */}
             {currentEvent?.type === 'dialogue' && (
-              <div 
+              <div
                 className="vn-dialog-box"
                 onClick={handleScreenClick}
                 style={{
@@ -729,7 +764,11 @@ export default function PlayerView() {
                   width: isPortrait ? '96%' : '94%',
                   background: 'rgba(8, 8, 14, 0.94)',
                   backdropFilter: 'blur(12px)',
-                  border: `2px solid ${hasSpeaker ? (speakerChar?.color || '#3b82f6') : 'rgba(255,255,255,0.2)'}`,
+                  border: `2px solid ${
+                    hasSpeaker
+                      ? speakerChar?.color || '#3b82f6'
+                      : 'rgba(255,255,255,0.2)'
+                  }`,
                   borderRadius: 12,
                   color: '#fff',
                   boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
@@ -738,24 +777,25 @@ export default function PlayerView() {
                   cursor: 'pointer'
                 }}
               >
-                {/* Cabecera del Hablante (Oculta si speakerId === 'none') */}
                 {hasSpeaker && (
-                  <div 
+                  <div
                     className="vn-dialog-title"
-                    style={{ 
-                      color: speakerChar?.color || '#fff', 
-                      fontWeight: 900, 
+                    style={{
+                      color: speakerChar?.color || '#fff',
+                      fontWeight: 900,
                       letterSpacing: '0.4px',
                       textShadow: '0 2px 6px rgba(0,0,0,0.7)'
                     }}
                   >
-                    {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
+                    {currentEvent.speakerId === 'narrator'
+                      ? 'Narrador'
+                      : speakerChar?.name || 'Personaje'}
                   </div>
                 )}
 
-                <div 
+                <div
                   className="vn-dialog-text"
-                  style={{ 
+                  style={{
                     color: '#f8fafc',
                     textShadow: '0 1px 3px rgba(0,0,0,0.8)',
                     minHeight: '1.45em',
@@ -768,26 +808,32 @@ export default function PlayerView() {
               </div>
             )}
 
-            {/* Fin de la Historia por Defecto */}
+            {/* Fin de la Escena / Historia */}
             {!currentEvent && (
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                background: 'rgba(10, 10, 16, 0.95)',
-                color: '#fff',
-                zIndex: 35,
-                padding: 20,
-                textAlign: 'center'
-              }}>
-                <h2 style={{ fontSize: 18, color: '#38bdf8', margin: 0 }}>Fin de la Escena / Historia</h2>
-                <p style={{ color: '#aaa', fontSize: 12, margin: 0 }}>Has llegado al final de las viñetas disponibles.</p>
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  background: 'rgba(10, 10, 16, 0.95)',
+                  color: '#fff',
+                  zIndex: 35,
+                  padding: 20,
+                  textAlign: 'center'
+                }}
+              >
+                <h2 style={{ fontSize: 18, color: '#38bdf8', margin: 0 }}>
+                  Fin de la Escena / Historia
+                </h2>
+                <p style={{ color: '#aaa', fontSize: 12, margin: 0 }}>
+                  Has llegado al final de las viñetas disponibles.
+                </p>
                 <button
-                  onClick={(e) => {
+                  onClick={e => {
                     e.stopPropagation();
                     startPlaytest(undefined, true);
                   }}
@@ -812,18 +858,20 @@ export default function PlayerView() {
 
         {/* Modal de Entrada de Nombre */}
         {askingName && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(5, 5, 10, 0.88)',
-            backdropFilter: 'blur(12px)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 12
-          }}>
-            <form 
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(5, 5, 10, 0.88)',
+              backdropFilter: 'blur(12px)',
+              zIndex: 100,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 12
+            }}
+          >
+            <form
               onSubmit={handleConfirmName}
               onClick={e => e.stopPropagation()}
               style={{
@@ -842,7 +890,7 @@ export default function PlayerView() {
             >
               <span style={{ fontSize: 22 }}>✍️</span>
               <strong style={{ color: '#fff', fontSize: 15 }}>¿Cómo te llamas?</strong>
-              
+
               <input
                 type="text"
                 autoFocus
@@ -882,8 +930,8 @@ export default function PlayerView() {
 
         {/* Historial */}
         {showHistory && !activeMenuScreen && (
-          <div 
-            onClick={(e) => e.stopPropagation()}
+          <div
+            onClick={e => e.stopPropagation()}
             style={{
               position: 'absolute',
               top: 40,
@@ -903,10 +951,16 @@ export default function PlayerView() {
               gap: 6
             }}
           >
-            <div style={{ fontWeight: 800, borderBottom: '1px solid #444', paddingBottom: 4 }}>Registro de Diálogos</div>
-            {gameState.history.length === 0 && <span style={{ color: '#666' }}>No hay diálogos previos.</span>}
+            <div style={{ fontWeight: 800, borderBottom: '1px solid #444', paddingBottom: 4 }}>
+              Registro de Diálogos
+            </div>
+            {gameState.history.length === 0 && (
+              <span style={{ color: '#666' }}>No hay diálogos previos.</span>
+            )}
             {gameState.history.map((line: string, idx: number) => (
-              <div key={idx} style={{ lineHeight: 1.35 }}>{line}</div>
+              <div key={idx} style={{ lineHeight: 1.35 }}>
+                {line}
+              </div>
             ))}
           </div>
         )}
