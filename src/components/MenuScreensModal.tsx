@@ -176,7 +176,6 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
   const handleResizePointerDown = (e: React.PointerEvent, element: MenuElement) => {
     e.stopPropagation();
     if (!canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
     const currentW = (element as any).widthPercent || (element.type === 'button' ? 25 : 35);
 
     setResizingElementId(element.id);
