@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNovel } from '../context/NovelContext';
-import { CharacterAnimation } from '../types';
+import { CharacterAnimation, MenuElement, VariableCondition } from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
 const SLOT_POSITIONS_X: Record<string, string> = {
@@ -36,6 +36,9 @@ export default function PlayerView() {
     gameState, 
     advancePlayerEvent, 
     selectChoiceOption, 
+    jumpToScene,
+    jumpToMenu,
+    applyVariableChanges,
     parseTextTokens, 
     setPlayerName, 
     startPlaytest 
@@ -46,7 +49,6 @@ export default function PlayerView() {
   const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
   const [isLargeScreenMode, setIsLargeScreenMode] = useState(false);
 
-  // Estados del efecto máquina de escribir (Typewriter)
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const typewriterTimerRef = useRef<number | null>(null);
@@ -71,16 +73,20 @@ export default function PlayerView() {
   const [tempPlayerName, setTempPlayerName] = useState(gameState.playerName || activePlayProject.defaultPlayerName || '');
 
   useEffect(() => {
-    if (activePlayProject.askPlayerName && !gameState.playerName && gameState.currentEventIndex === 0 && gameState.history.length === 0) {
+    if (activePlayProject.askPlayerName && !gameState.playerName && gameState.currentEventIndex === 0 && gameState.history.length === 0 && !gameState.currentMenuId) {
       setAskingName(true);
     }
-  }, [activePlayProject.askPlayerName]);
+  }, [activePlayProject.askPlayerName, gameState.currentMenuId]);
 
   useEffect(() => {
-    if (!gameState.currentSceneId) {
+    if (!gameState.currentSceneId && !gameState.currentMenuId) {
       startPlaytest();
     }
-  }, [gameState.currentSceneId]);
+  }, [gameState.currentSceneId, gameState.currentMenuId]);
+
+  const activeMenuScreen = gameState.currentMenuId 
+    ? activePlayProject.customScreens?.[gameState.currentMenuId] 
+    : null;
 
   const scenesList = (activePlayProject as any).scenes || activePlayProject.chapters?.[0]?.scenes || [];
   const currentScene = scenesList.find((s: any) => s.id === gameState.currentSceneId) || scenesList[0];
@@ -90,16 +96,18 @@ export default function PlayerView() {
     : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
 
   const currentEvent = timeline?.[gameState.currentEventIndex] as any;
-  const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
+  const effectiveBgUrl = activeMenuScreen 
+    ? activeMenuScreen.backgroundUrl 
+    : (currentEvent?.backgroundUrl || currentScene?.backgroundUrl);
 
-  // Manejo del efecto Typewriter
+  // Typewriter
   useEffect(() => {
     if (typewriterTimerRef.current) {
       clearInterval(typewriterTimerRef.current);
       typewriterTimerRef.current = null;
     }
 
-    if (currentEvent?.type === 'dialogue') {
+    if (!activeMenuScreen && currentEvent?.type === 'dialogue') {
       const fullText = parseTextTokens(currentEvent.text || '');
       setDisplayedText('');
       setIsTyping(true);
@@ -127,27 +135,28 @@ export default function PlayerView() {
         typewriterTimerRef.current = null;
       }
     };
-  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId]);
+  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId, gameState.currentMenuId]);
 
-  // Manejo de Audio
+  // Audio
   useEffect(() => {
-    const eventBgm = currentEvent?.bgmUrl;
-    if (eventBgm === 'stop') {
+    const activeBgm = activeMenuScreen ? activeMenuScreen.bgmUrl : currentEvent?.bgmUrl;
+
+    if (activeBgm === 'stop') {
       if (bgmAudioRef.current) {
         bgmAudioRef.current.pause();
         bgmAudioRef.current.src = '';
       }
-    } else if (eventBgm && eventBgm !== bgmAudioRef.current?.src) {
+    } else if (activeBgm && activeBgm !== bgmAudioRef.current?.src) {
       if (!bgmAudioRef.current) {
-        bgmAudioRef.current = new Audio(eventBgm);
+        bgmAudioRef.current = new Audio(activeBgm);
         bgmAudioRef.current.loop = true;
       } else {
-        bgmAudioRef.current.src = eventBgm;
+        bgmAudioRef.current.src = activeBgm;
       }
       bgmAudioRef.current.play().catch(() => {});
     }
 
-    if (currentEvent?.sfxUrl) {
+    if (!activeMenuScreen && currentEvent?.sfxUrl) {
       if (!sfxAudioRef.current) {
         sfxAudioRef.current = new Audio(currentEvent.sfxUrl);
       } else {
@@ -156,7 +165,7 @@ export default function PlayerView() {
       sfxAudioRef.current.currentTime = 0;
       sfxAudioRef.current.play().catch(() => {});
     }
-  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId]);
+  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId, gameState.currentMenuId]);
 
   useEffect(() => {
     return () => {
@@ -171,7 +180,8 @@ export default function PlayerView() {
     };
   }, []);
 
-  const speakerChar = currentEvent?.type === 'dialogue' && currentEvent.speakerId !== 'narrator'
+  const hasSpeaker = currentEvent?.type === 'dialogue' && currentEvent.speakerId && currentEvent.speakerId !== 'none';
+  const speakerChar = hasSpeaker && currentEvent.speakerId !== 'narrator'
     ? gameState.runtimeCharacters[currentEvent.speakerId] || activePlayProject.characters[currentEvent.speakerId]
     : null;
 
@@ -179,7 +189,27 @@ export default function PlayerView() {
     return activePlayProject.variables?.[key]?.isVisibleInHUD === true;
   });
 
+  const checkCondition = (cond: VariableCondition | undefined): boolean => {
+    if (!cond || !cond.variableName) return true;
+    const currentVal = gameState.runtimeVariables[cond.variableName];
+    const targetVal = cond.value;
+
+    switch (cond.operator) {
+      case 'equals':
+        return String(currentVal) === String(targetVal);
+      case 'not_equals':
+        return String(currentVal) !== String(targetVal);
+      case 'greater':
+        return Number(currentVal) > Number(targetVal);
+      case 'less':
+        return Number(currentVal) < Number(targetVal);
+      default:
+        return true;
+    }
+  };
+
   const handleScreenClick = () => {
+    if (activeMenuScreen) return;
     if (showHistory || showSaveLoad || askingName) return;
     if (currentEvent?.type === 'choice') return;
 
@@ -194,6 +224,40 @@ export default function PlayerView() {
     }
 
     advancePlayerEvent();
+  };
+
+  const handleMenuElementClick = (element: MenuElement) => {
+    if (!element.action) return;
+
+    if (element.action.variableChanges && element.action.variableChanges.length > 0) {
+      applyVariableChanges(element.action.variableChanges, gameState.runtimeVariables);
+    }
+
+    switch (element.action.type) {
+      case 'start_game':
+        startPlaytest(undefined, true);
+        break;
+      case 'jump_to_scene':
+        if (element.action.targetSceneId) {
+          jumpToScene(
+            element.action.targetSceneId,
+            element.action.targetBranchId || 'main',
+            element.action.targetEventIndex || 0
+          );
+        }
+        break;
+      case 'jump_to_menu':
+        if (element.action.targetMenuId) {
+          jumpToMenu(element.action.targetMenuId);
+        }
+        break;
+      case 'open_save_load':
+        setShowSaveLoad(true);
+        break;
+      case 'restart':
+        startPlaytest(undefined, true);
+        break;
+    }
   };
 
   const handleConfirmName = (e: React.FormEvent) => {
@@ -225,6 +289,81 @@ export default function PlayerView() {
         return 'slideInAnim 0.4s ease-out';
       default:
         return 'none';
+    }
+  };
+
+  const getElementStyle = (variant: string) => {
+    switch (variant) {
+      case 'title':
+        return {
+          fontSize: isPortrait ? 20 : 28,
+          fontWeight: 900,
+          color: '#38bdf8',
+          textShadow: '0 4px 16px rgba(0,0,0,0.9), 0 0 20px rgba(56,189,248,0.4)',
+          background: 'none',
+          border: 'none',
+          textAlign: 'center' as const
+        };
+      case 'subtitle':
+        return {
+          fontSize: isPortrait ? 13 : 16,
+          fontWeight: 600,
+          color: '#cbd5e1',
+          textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+          background: 'none',
+          border: 'none',
+          textAlign: 'center' as const
+        };
+      case 'danger':
+        return {
+          background: '#dc2626',
+          color: '#fff',
+          border: '1px solid #ef4444',
+          borderRadius: 8,
+          padding: isPortrait ? '8px 14px' : '10px 20px',
+          fontWeight: 800,
+          fontSize: isPortrait ? 12 : 14,
+          cursor: 'pointer',
+          boxShadow: '0 4px 16px rgba(220,38,38,0.4)'
+        };
+      case 'glass':
+        return {
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(10px)',
+          color: '#f8fafc',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: 8,
+          padding: isPortrait ? '8px 14px' : '10px 20px',
+          fontWeight: 700,
+          fontSize: isPortrait ? 12 : 14,
+          cursor: 'pointer',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+        };
+      case 'secondary':
+        return {
+          background: '#1e293b',
+          color: '#e2e8f0',
+          border: '1px solid #334155',
+          borderRadius: 8,
+          padding: isPortrait ? '8px 14px' : '10px 20px',
+          fontWeight: 700,
+          fontSize: isPortrait ? 12 : 14,
+          cursor: 'pointer',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.4)'
+        };
+      case 'primary':
+      default:
+        return {
+          background: '#2563eb',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 8,
+          padding: isPortrait ? '8px 16px' : '10px 24px',
+          fontWeight: 800,
+          fontSize: isPortrait ? 12 : 14,
+          cursor: 'pointer',
+          boxShadow: '0 4px 18px rgba(37,99,235,0.5)'
+        };
     }
   };
 
@@ -338,7 +477,7 @@ export default function PlayerView() {
           boxShadow: '0 10px 40px rgba(0,0,0,0.85)',
           border: isPortrait ? 'none' : '1px solid rgba(255,255,255,0.12)',
           userSelect: 'none',
-          cursor: currentEvent ? 'pointer' : 'default',
+          cursor: activeMenuScreen ? 'default' : (currentEvent ? 'pointer' : 'default'),
           flexShrink: 0
         }}
       >
@@ -355,7 +494,7 @@ export default function PlayerView() {
             zIndex: 40
           }}
         >
-          {visibleVariables.length > 0 ? (
+          {visibleVariables.length > 0 && !activeMenuScreen ? (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {visibleVariables.map(([k, v]) => (
                 <div
@@ -396,21 +535,23 @@ export default function PlayerView() {
               💾 <span style={{ display: isPortrait ? 'none' : 'inline' }}>Guardar/Cargar</span>
             </button>
 
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
-              title="Historial de Diálogos"
-              style={{
-                background: 'rgba(20, 20, 28, 0.85)',
-                color: '#fff',
-                border: '1px solid #555',
-                borderRadius: 6,
-                padding: isPortrait ? '3px 7px' : '4px 9px',
-                fontSize: 10,
-                cursor: 'pointer'
-              }}
-            >
-              📜 <span style={{ display: isPortrait ? 'none' : 'inline' }}>Historial</span>
-            </button>
+            {!activeMenuScreen && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowHistory(prev => !prev); }}
+                title="Historial de Diálogos"
+                style={{
+                  background: 'rgba(20, 20, 28, 0.85)',
+                  color: '#fff',
+                  border: '1px solid #555',
+                  borderRadius: 6,
+                  padding: isPortrait ? '3px 7px' : '4px 9px',
+                  fontSize: 10,
+                  cursor: 'pointer'
+                }}
+              >
+                📜 <span style={{ display: isPortrait ? 'none' : 'inline' }}>Historial</span>
+              </button>
+            )}
 
             <button
               onClick={(e) => {
@@ -435,191 +576,238 @@ export default function PlayerView() {
           </div>
         </div>
 
-        {/* Personajes en Escena */}
-        {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
-          const charDef = activePlayProject.characters[inst.characterId];
-          if (!charDef) return null;
+        {/* 1. MODO MENÚ PERSONALIZADO / PANTALLA FINAL */}
+        {activeMenuScreen ? (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 25, pointerEvents: 'auto' }}>
+            {activeMenuScreen.elements?.map(el => {
+              if (!checkCondition(el.condition)) return null;
 
-          const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
-          const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
-          const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+              const slotX = SLOT_POSITIONS_X[String(el.slotX || 'center')] || '50%';
+              const slotY = SLOT_POSITIONS_Y[String(el.verticalSlot || 'floor')] || '0%';
+              const style = getElementStyle(el.styleVariant);
 
-          const resolvedSprite =
-            charDef.expressions?.[inst.expression] ||
-            Object.values(charDef.expressions || {})[0] ||
-            charDef.avatarUrl;
+              return (
+                <div
+                  key={el.id}
+                  style={{
+                    position: 'absolute',
+                    bottom: slotY,
+                    left: slotX,
+                    transform: 'translate(-50%, 50%)',
+                    zIndex: 30
+                  }}
+                >
+                  {el.type === 'button' ? (
+                    <button
+                      onClick={() => handleMenuElementClick(el)}
+                      style={style}
+                    >
+                      {parseTextTokens(el.text)}
+                    </button>
+                  ) : (
+                    <div style={style}>
+                      {parseTextTokens(el.text)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <>
+            {/* 2. MODO ESCENA NARRATIVA REGULAR */}
+            {/* Personajes en Escena */}
+            {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
+              const charDef = activePlayProject.characters[inst.characterId];
+              if (!charDef) return null;
 
-          return (
-            <div
-              key={inst.characterId}
-              style={{
-                position: 'absolute',
-                bottom: slotY,
-                left: slotX,
-                transform: 'translateX(-50%)',
-                transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
-                pointerEvents: 'none',
-                zIndex: 10,
-                height: scale,
-                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
-              }}
-            >
-              <img
-                src={resolvedSprite}
-                alt={charDef.name}
-                draggable={false}
+              const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
+              const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+              const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+
+              const resolvedSprite =
+                charDef.expressions?.[inst.expression] ||
+                Object.values(charDef.expressions || {})[0] ||
+                charDef.avatarUrl;
+
+              return (
+                <div
+                  key={inst.characterId}
+                  style={{
+                    position: 'absolute',
+                    bottom: slotY,
+                    left: slotX,
+                    transform: 'translateX(-50%)',
+                    transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
+                    pointerEvents: 'none',
+                    zIndex: 10,
+                    height: scale,
+                    filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
+                  }}
+                >
+                  <img
+                    src={resolvedSprite}
+                    alt={charDef.name}
+                    draggable={false}
+                    style={{
+                      display: 'block',
+                      height: '100%',
+                      width: 'auto',
+                      objectFit: 'contain',
+                      animation: getAnimationKeyframes(inst.animation)
+                    }}
+                  />
+                </div>
+              );
+            })}
+
+            {/* Opciones de Elección */}
+            {currentEvent?.type === 'choice' && (
+              <div 
+                className="vn-choice-container"
                 style={{
-                  display: 'block',
-                  height: '100%',
-                  width: 'auto',
-                  objectFit: 'contain',
-                  animation: getAnimationKeyframes(inst.animation)
-                }}
-              />
-            </div>
-          );
-        })}
-
-        {/* Decisiones */}
-        {currentEvent?.type === 'choice' && (
-          <div 
-            className="vn-choice-container"
-            style={{
-              position: 'absolute',
-              top: '8%',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              width: '92%',
-              maxWidth: 520,
-              zIndex: 35
-            }}
-          >
-            <div style={{
-              background: 'rgba(15, 15, 22, 0.96)',
-              color: '#fff',
-              padding: isPortrait ? '6px 10px' : '8px 14px',
-              borderRadius: 8,
-              textAlign: 'center',
-              fontSize: isPortrait ? 12 : 13,
-              fontWeight: 800,
-              border: '1.5px solid #3b82f6'
-            }}>
-              {parseTextTokens(currentEvent.prompt)}
-            </div>
-
-            {currentEvent.options?.map((option: any) => (
-              <button
-                key={option.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  selectChoiceOption(option.id);
-                }}
-                style={{
-                  padding: isPortrait ? '8px 12px' : '10px 16px',
-                  background: '#1f1f2e',
-                  color: '#fff',
-                  border: '1px solid #4f46e5',
-                  borderRadius: 8,
-                  fontSize: isPortrait ? 11 : 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.5)'
+                  position: 'absolute',
+                  top: '8%',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  width: '92%',
+                  maxWidth: 520,
+                  zIndex: 35
                 }}
               >
-                {parseTextTokens(option.text)}
-              </button>
-            ))}
-          </div>
-        )}
+                <div style={{
+                  background: 'rgba(15, 15, 22, 0.96)',
+                  color: '#fff',
+                  padding: isPortrait ? '6px 10px' : '8px 14px',
+                  borderRadius: 8,
+                  textAlign: 'center',
+                  fontSize: isPortrait ? 12 : 13,
+                  fontWeight: 800,
+                  border: '1.5px solid #3b82f6'
+                }}>
+                  {parseTextTokens(currentEvent.prompt)}
+                </div>
 
-        {/* Caja de Diálogo con Typewriter */}
-        {currentEvent?.type === 'dialogue' && (
-          <div 
-            className="vn-dialog-box"
-            onClick={handleScreenClick}
-            style={{
-              position: 'absolute',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: isPortrait ? '96%' : '94%',
-              background: 'rgba(8, 8, 14, 0.94)',
-              backdropFilter: 'blur(12px)',
-              border: `2px solid ${speakerChar?.color || '#3b82f6'}`,
-              borderRadius: 12,
-              color: '#fff',
-              boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
-              zIndex: 30,
-              boxSizing: 'border-box',
-              cursor: 'pointer'
-            }}
-          >
-            <div 
-              className="vn-dialog-title"
-              style={{ 
-                color: speakerChar?.color || '#fff', 
-                fontWeight: 900, 
-                letterSpacing: '0.4px',
-                textShadow: '0 2px 6px rgba(0,0,0,0.7)'
-              }}
-            >
-              {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
-            </div>
-            <div 
-              className="vn-dialog-text"
-              style={{ 
-                color: '#f8fafc',
-                textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-                minHeight: '1.45em'
-              }}
-            >
-              {displayedText}
-              {isTyping && <span style={{ opacity: 0.7, marginLeft: 2 }}>▍</span>}
-            </div>
-          </div>
-        )}
+                {currentEvent.options?.map((option: any) => (
+                  <button
+                    key={option.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectChoiceOption(option.id);
+                    }}
+                    style={{
+                      padding: isPortrait ? '8px 12px' : '10px 16px',
+                      background: '#1f1f2e',
+                      color: '#fff',
+                      border: '1px solid #4f46e5',
+                      borderRadius: 8,
+                      fontSize: isPortrait ? 11 : 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.5)'
+                    }}
+                  >
+                    {parseTextTokens(option.text)}
+                  </button>
+                ))}
+              </div>
+            )}
 
-        {/* Fin de la Historia */}
-        {!currentEvent && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-            background: 'rgba(10, 10, 16, 0.95)',
-            color: '#fff',
-            zIndex: 35,
-            padding: 20,
-            textAlign: 'center'
-          }}>
-            <h2 style={{ fontSize: 18, color: '#38bdf8', margin: 0 }}>Fin de la Escena / Historia</h2>
-            <p style={{ color: '#aaa', fontSize: 12, margin: 0 }}>Has llegado al final de las viñetas disponibles.</p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                startPlaytest(undefined, true);
-              }}
-              style={{
-                marginTop: 6,
-                padding: '7px 16px',
-                background: '#2563eb',
+            {/* Caja de Diálogo con Soporte de Texto Puro / Sin Hablante */}
+            {currentEvent?.type === 'dialogue' && (
+              <div 
+                className="vn-dialog-box"
+                onClick={handleScreenClick}
+                style={{
+                  position: 'absolute',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: isPortrait ? '96%' : '94%',
+                  background: 'rgba(8, 8, 14, 0.94)',
+                  backdropFilter: 'blur(12px)',
+                  border: `2px solid ${hasSpeaker ? (speakerChar?.color || '#3b82f6') : 'rgba(255,255,255,0.2)'}`,
+                  borderRadius: 12,
+                  color: '#fff',
+                  boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
+                  zIndex: 30,
+                  boxSizing: 'border-box',
+                  cursor: 'pointer'
+                }}
+              >
+                {/* Cabecera del Hablante (Oculta si speakerId === 'none') */}
+                {hasSpeaker && (
+                  <div 
+                    className="vn-dialog-title"
+                    style={{ 
+                      color: speakerChar?.color || '#fff', 
+                      fontWeight: 900, 
+                      letterSpacing: '0.4px',
+                      textShadow: '0 2px 6px rgba(0,0,0,0.7)'
+                    }}
+                  >
+                    {currentEvent.speakerId === 'narrator' ? 'Narrador' : (speakerChar?.name || 'Personaje')}
+                  </div>
+                )}
+
+                <div 
+                  className="vn-dialog-text"
+                  style={{ 
+                    color: '#f8fafc',
+                    textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                    minHeight: '1.45em',
+                    fontStyle: !hasSpeaker ? 'italic' : 'normal'
+                  }}
+                >
+                  {displayedText}
+                  {isTyping && <span style={{ opacity: 0.7, marginLeft: 2 }}>▍</span>}
+                </div>
+              </div>
+            )}
+
+            {/* Fin de la Historia por Defecto */}
+            {!currentEvent && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                background: 'rgba(10, 10, 16, 0.95)',
                 color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: 'pointer'
-              }}
-            >
-              🔄 Reiniciar
-            </button>
-          </div>
+                zIndex: 35,
+                padding: 20,
+                textAlign: 'center'
+              }}>
+                <h2 style={{ fontSize: 18, color: '#38bdf8', margin: 0 }}>Fin de la Escena / Historia</h2>
+                <p style={{ color: '#aaa', fontSize: 12, margin: 0 }}>Has llegado al final de las viñetas disponibles.</p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startPlaytest(undefined, true);
+                  }}
+                  style={{
+                    marginTop: 6,
+                    padding: '7px 16px',
+                    background: '#2563eb',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🔄 Reiniciar
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Modal de Entrada de Nombre */}
@@ -693,7 +881,7 @@ export default function PlayerView() {
         )}
 
         {/* Historial */}
-        {showHistory && (
+        {showHistory && !activeMenuScreen && (
           <div 
             onClick={(e) => e.stopPropagation()}
             style={{
