@@ -14,7 +14,7 @@ const NOVEL_TAGS = ['Romance', 'Fantasía', 'Misterio', 'Drama', 'Comedia', 'Ter
 
 export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovelsModalProps) {
   const { user, profile, loginWithGoogle } = useAuth();
-  const { project, setProject, importCommunityNovelToLibrary, startPlaytest } = useNovel();
+  const { project, launchPlayer, importCommunityNovelToLibrary } = useNovel();
 
   const [novels, setNovels] = useState<CommunityNovel[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,7 +32,7 @@ export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovel
   const [pubDesc, setPubDesc] = useState(project.description || '');
   const [pubTags, setPubTags] = useState('');
   const [pubIsNsfw, setPubIsNsfw] = useState(false);
-  const [allowFork, setAllowFork] = useState(true);
+  const [allowCommunityEdit, setAllowCommunityEdit] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
   const fetchNovels = async () => {
@@ -40,10 +40,13 @@ export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovel
     try {
       const q = query(collection(db, 'community_novels'), orderBy('createdAt', 'desc'));
       const snap = await getDocs(q);
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as CommunityNovel));
+      const list = snap.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      })) as CommunityNovel[];
       setNovels(list);
-    } catch (e) {
-      console.error('Error al cargar novelas comunitarias:', e);
+    } catch (err) {
+      console.error('Error al cargar novelas de la comunidad:', err);
     } finally {
       setLoading(false);
     }
@@ -55,9 +58,9 @@ export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovel
       setPubTitle(project.title || '');
       setPubDesc(project.description || '');
     }
-  }, [isOpen]);
+  }, [isOpen, project.title, project.description]);
 
-  const toggleNsfwSetting = () => {
+  const toggleNsfw = () => {
     const nextVal = !showNsfw;
     setShowNsfw(nextVal);
     localStorage.setItem('vwn_show_nsfw_novels', String(nextVal));
@@ -65,18 +68,16 @@ export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovel
 
   if (!isOpen) return null;
 
-  // Filtrado compuesto
   const filteredNovels = novels.filter(n => {
     if (!showNsfw && n.isNsfw) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchTitle = n.title?.toLowerCase().includes(q);
-      const matchDesc = n.description?.toLowerCase().includes(q);
-      const matchAuthor = n.authorName?.toLowerCase().includes(q);
-      const matchId = n.id?.toLowerCase().includes(q);
-      const matchTag = n.tags?.some(t => t.toLowerCase().includes(q));
-      if (!matchTitle && !matchDesc && !matchAuthor && !matchId && !matchTag) return false;
+      const matchTitle = n.title.toLowerCase().includes(q);
+      const matchDesc = (n.description || '').toLowerCase().includes(q);
+      const matchAuthor = (n.authorName || '').toLowerCase().includes(q);
+      const matchTags = (n.tags || []).some(t => t.toLowerCase().includes(q));
+      if (!matchTitle && !matchDesc && !matchAuthor && !matchTags) return false;
     }
 
     if (selectedTag !== 'todos') {
@@ -86,20 +87,16 @@ export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovel
     return true;
   });
 
-  const { launchPlayer, importCommunityNovelToLibrary } = useNovel();
-  const { user } = useAuth();
-
-const handlePlayDirectly = (novel: CommunityNovel) => {
-  const canEdit = Boolean(novel.allowCommunityEdit || (user && user.uid === novel.authorId));
-  launchPlayer(novel.projectData, {
-    isEditorPlaytest: false,
-    canEdit,
-    novelId: novel.id,
-    fromStart: true
-  });
-  onPlayDirectly();
-  onClose();
-};
+  const handlePlayDirectly = (novel: CommunityNovel) => {
+    const canEdit = Boolean(novel.allowCommunityEdit || (user && user.uid === novel.authorId));
+    launchPlayer(novel.projectData, {
+      isEditorPlaytest: false,
+      canEdit,
+      novelId: novel.id,
+      fromStart: true
+    });
+    onClose();
+  };
 
   const handleImportToLibrary = (novel: CommunityNovel) => {
     importCommunityNovelToLibrary(
@@ -160,7 +157,8 @@ const handlePlayDirectly = (novel: CommunityNovel) => {
     if (!user) return alert('Debes iniciar sesión para publicar.');
     if (!pubTitle.trim()) return alert('La novela debe tener un título.');
 
-    const cover = project.backgroundGallery?.[0]?.url || project.chapters[0]?.scenes[0]?.backgroundUrl || '';
+    const scenes = (project as any).scenes || project.chapters?.[0]?.scenes || [];
+    const cover = project.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl || '';
 
     const parsedTags = pubTags
       .split(',')
@@ -169,310 +167,342 @@ const handlePlayDirectly = (novel: CommunityNovel) => {
 
     setIsPublishing(true);
     try {
-      await addDoc(collection(db, 'community_novels'), {
+      const newNovelDoc: Omit<CommunityNovel, 'id'> = {
         title: pubTitle.trim(),
         description: pubDesc.trim(),
         coverUrl: cover,
         tags: parsedTags,
         isNsfw: pubIsNsfw,
-        authorName: profile?.displayName || user.displayName || 'Creador',
+        allowCommunityEdit,
+        authorName: profile?.displayName || user.displayName || 'Autor Anónimo',
         authorId: user.uid,
         createdAt: Date.now(),
-        allowCommunityEdit: allowFork,
-        projectData: {
-          ...project,
-          title: pubTitle.trim(),
-          description: pubDesc.trim()
-        }
-      });
+        projectData: project
+      };
 
-      alert('¡Tu novela ha sido publicada en la comunidad con éxito!');
+      const docRef = await addDoc(collection(db, 'community_novels'), newNovelDoc);
+      setNovels(prev => [{ id: docRef.id, ...newNovelDoc }, ...prev]);
       setShowPublishForm(false);
-      fetchNovels();
-    } catch (e: any) {
-      console.error(e);
-      alert(`Error al publicar novela: ${e.message || 'Verifica los datos del proyecto.'}`);
+      alert('¡Novela publicada exitosamente en la comunidad!');
+    } catch (err: any) {
+      console.error('Error publicando:', err);
+      alert('Error al publicar: ' + (err.message || 'Verifica tu conexión'));
     } finally {
       setIsPublishing(false);
     }
   };
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(5, 5, 10, 0.85)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 250,
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(5, 5, 10, 0.85)',
+      backdropFilter: 'blur(8px)',
+      zIndex: 120,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 12
+    }}>
+      <div style={{
+        background: '#0d0d14',
+        border: '1px solid #2d2d3f',
+        borderRadius: 16,
+        width: '100%',
+        maxWidth: 960,
+        height: '90vh',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 12
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: '#11111a',
-          border: '1px solid rgba(56, 189, 248, 0.3)',
-          borderRadius: 16,
-          width: '100%',
-          maxWidth: 800,
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.9)',
-          overflow: 'hidden',
-          color: '#fff'
-        }}
-      >
+        flexDirection: 'column',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.85)',
+        color: '#fff',
+        overflow: 'hidden'
+      }}>
         {/* Cabecera */}
         <div style={{
-          padding: '12px 16px',
-          borderBottom: '1px solid #222233',
+          padding: '12px 18px',
+          borderBottom: '1px solid #1f1f2e',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: '#090910'
+          background: '#12121c'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18 }}>📚</span>
-            <strong style={{ fontSize: 14 }}>Novelas de la Comunidad</strong>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#999', fontSize: 18, cursor: 'pointer' }}>✕</button>
-        </div>
-
-        {/* Barra Superior de Control */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', background: '#161624', borderBottom: '1px solid #222233', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: showNsfw ? '#f43f5e' : '#aaa' }}>
-              <input
-                type="checkbox"
-                checked={showNsfw}
-                onChange={toggleNsfwSetting}
-                style={{ accentColor: '#f43f5e', cursor: 'pointer' }}
-              />
-              🔞 Ver +18
-            </label>
+            <span style={{ fontSize: 20 }}>🌐</span>
+            <div>
+              <strong style={{ fontSize: 16, color: '#f3f4f6' }}>Novelas de la Comunidad</strong>
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>Explora, juega y comparte historias interactivas</div>
+            </div>
           </div>
 
-          <button
-            onClick={() => setShowPublishForm(prev => !prev)}
-            style={{ padding: '5px 12px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-          >
-            {showPublishForm ? 'Ver Catálogo' : '🚀 Publicar Mi Proyecto Actual'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => setShowPublishForm(prev => !prev)}
+              style={{
+                padding: '6px 12px',
+                background: showPublishForm ? '#374151' : '#a855f7',
+                border: 'none',
+                borderRadius: 6,
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 11,
+                cursor: 'pointer'
+              }}
+            >
+              {showPublishForm ? '✕ Cancelar' : '🚀 Publicar mi Proyecto'}
+            </button>
+
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', color: '#888', fontSize: 18, cursor: 'pointer', padding: '4px 8px' }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        {/* Buscador y Tags */}
+        {/* Barra de Filtros y Búsqueda */}
         {!showPublishForm && (
-          <div style={{ padding: '8px 14px', background: '#0e0e16', borderBottom: '1px solid #222233', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="🔍 Buscar por título, descripción, autor, ID o etiqueta..."
-                style={{
-                  flex: 1,
-                  background: '#161622',
-                  border: '1px solid #333',
-                  borderRadius: 6,
-                  color: '#fff',
-                  padding: '6px 10px',
-                  fontSize: 11
-                }}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  style={{ background: '#333', border: 'none', borderRadius: 6, color: '#aaa', padding: '0 8px', cursor: 'pointer', fontSize: 10 }}
-                >
-                  Limpiar
-                </button>
-              )}
-            </div>
+          <div style={{
+            padding: '10px 18px',
+            borderBottom: '1px solid #1f1f2e',
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            background: '#0a0a10'
+          }}>
+            <input
+              type="text"
+              placeholder="Buscar por título, autor o palabra clave..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: 200,
+                background: '#161622',
+                border: '1px solid #2d2d3f',
+                borderRadius: 6,
+                padding: '6px 10px',
+                color: '#fff',
+                fontSize: 12,
+                outline: 'none'
+              }}
+            />
 
-            {/* Tags Rápidos */}
-            <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
-              <button
-                onClick={() => setSelectedTag('todos')}
-                style={{
-                  padding: '2px 8px',
-                  background: selectedTag === 'todos' ? '#38bdf8' : 'rgba(255,255,255,0.06)',
-                  color: selectedTag === 'todos' ? '#000' : '#888',
-                  border: 'none',
-                  borderRadius: 12,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Todos
-              </button>
+            <select
+              value={selectedTag}
+              onChange={e => setSelectedTag(e.target.value)}
+              style={{
+                background: '#161622',
+                border: '1px solid #2d2d3f',
+                borderRadius: 6,
+                padding: '6px 10px',
+                color: '#fff',
+                fontSize: 12,
+                outline: 'none'
+              }}
+            >
+              <option value="todos">Todos los Géneros</option>
               {NOVEL_TAGS.map(t => (
-                <button
-                  key={t}
-                  onClick={() => setSelectedTag(t)}
-                  style={{
-                    padding: '2px 8px',
-                    background: selectedTag === t ? '#38bdf8' : 'rgba(255,255,255,0.06)',
-                    color: selectedTag === t ? '#000' : '#aaa',
-                    border: 'none',
-                    borderRadius: 12,
-                    fontSize: 10,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  #{t}
-                </button>
+                <option key={t} value={t}>{t}</option>
               ))}
-            </div>
+            </select>
+
+            <button
+              onClick={toggleNsfw}
+              style={{
+                padding: '6px 10px',
+                background: showNsfw ? '#ef4444' : '#1e1e2d',
+                border: '1px solid #2d2d3f',
+                color: showNsfw ? '#fff' : '#888',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              🔞 NSFW: {showNsfw ? 'Visible' : 'Oculto'}
+            </button>
+
+            <button
+              onClick={fetchNovels}
+              title="Recargar novelas"
+              style={{
+                padding: '6px 10px',
+                background: '#161622',
+                border: '1px solid #2d2d3f',
+                color: '#38bdf8',
+                borderRadius: 6,
+                fontSize: 11,
+                cursor: 'pointer'
+              }}
+            >
+              🔄
+            </button>
           </div>
         )}
 
-        {/* Contenedor Principal */}
-        <div style={{ padding: 14, overflowY: 'auto', flex: 1 }}>
+        {/* Contenido Principal */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
           {showPublishForm ? (
             <form onSubmit={handlePublishCurrentProject} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 460, margin: '0 auto' }}>
-              <strong style={{ fontSize: 14, color: '#38bdf8' }}>Publicar historia en la Comunidad</strong>
-              
+              <h3 style={{ margin: '0 0 4px 0', fontSize: 15, color: '#c084fc' }}>Publicar Historia Actual en la Comunidad</h3>
+              <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>
+                Comparte tu novela visual con todos los usuarios.
+              </p>
+
               <div>
-                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Título:</label>
+                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Título de la Novela</label>
                 <input
                   type="text"
+                  required
                   value={pubTitle}
                   onChange={e => setPubTitle(e.target.value)}
-                  placeholder="Título de la novela..."
-                  style={{ width: '100%', padding: 8, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 12, boxSizing: 'border-box' }}
-                  required
+                  style={{ width: '100%', background: '#161622', border: '1px solid #2d2d3f', borderRadius: 6, padding: '7px', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Sinopsis / Descripción:</label>
+                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Descripción / Sinopsis</label>
                 <textarea
+                  rows={3}
                   value={pubDesc}
                   onChange={e => setPubDesc(e.target.value)}
-                  placeholder="¿De qué trata tu historia?..."
-                  rows={3}
-                  style={{ width: '100%', padding: 8, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 11, boxSizing: 'border-box' }}
+                  placeholder="Cuenta de qué trata tu historia..."
+                  style={{ width: '100%', background: '#161622', border: '1px solid #2d2d3f', borderRadius: 6, padding: '7px', color: '#fff', fontSize: 12, boxSizing: 'border-box', resize: 'vertical' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Etiquetas:</label>
+                <label style={{ fontSize: 11, color: '#aaa', display: 'block', marginBottom: 2 }}>Etiquetas (separadas por comas)</label>
                 <input
                   type="text"
+                  placeholder="Romance, Escolar, Misterio..."
                   value={pubTags}
                   onChange={e => setPubTags(e.target.value)}
-                  placeholder="Romance, Misterio, Fantasía..."
-                  style={{ width: '100%', padding: 8, background: '#0a0a10', border: '1px solid #333', color: '#fff', borderRadius: 6, fontSize: 11, boxSizing: 'border-box' }}
+                  style={{ width: '100%', background: '#161622', border: '1px solid #2d2d3f', borderRadius: 6, padding: '7px', color: '#fff', fontSize: 12, boxSizing: 'border-box' }}
                 />
               </div>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#fda4af', cursor: 'pointer', background: 'rgba(244,63,94,0.1)', padding: '6px 10px', borderRadius: 6, border: '1px solid rgba(244,63,94,0.3)' }}>
-                <input
-                  type="checkbox"
-                  checked={pubIsNsfw}
-                  onChange={e => setPubIsNsfw(e.target.checked)}
-                  style={{ accentColor: '#f43f5e' }}
-                />
-                Marcar como Historia para Adultos (+18 / NSFW)
-              </label>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginTop: 4 }}>
+                <label style={{ fontSize: 12, color: '#ddd', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={pubIsNsfw}
+                    onChange={e => setPubIsNsfw(e.target.checked)}
+                  />
+                  <span>Contenido Maduro / NSFW</span>
+                </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#94a3b8', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={allowFork}
-                  onChange={e => setAllowFork(e.target.checked)}
-                  style={{ accentColor: '#38bdf8' }}
-                />
-                Permitir que otros usuarios editen/remixeen mi proyecto en su estudio
-              </label>
+                <label style={{ fontSize: 12, color: '#ddd', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={allowCommunityEdit}
+                    onChange={e => setAllowCommunityEdit(e.target.checked)}
+                  />
+                  <span>Permitir clonar/editar proyecto</span>
+                </label>
+              </div>
 
-              {!user ? (
-                <button type="button" onClick={loginWithGoogle} style={{ padding: 10, background: '#ea4335', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: 'pointer', marginTop: 4 }}>
-                  Inicia sesión para publicar
-                </button>
-              ) : (
-                <button type="submit" disabled={isPublishing} style={{ padding: 10, background: '#10b981', color: '#042f1f', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginTop: 4 }}>
-                  {isPublishing ? 'Publicando...' : 'Publicar Ahora'}
-                </button>
-              )}
+              <button
+                type="submit"
+                disabled={isPublishing}
+                style={{
+                  marginTop: 8,
+                  padding: '10px',
+                  background: '#a855f7',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
+              >
+                {isPublishing ? 'Publicando...' : '🚀 Confirmar y Publicar'}
+              </button>
             </form>
           ) : loading ? (
-            <div style={{ textAlign: 'center', padding: 25, color: '#666' }}>Cargando novelas...</div>
+            <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>Cargando novelas...</div>
           ) : filteredNovels.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 25, color: '#666', fontSize: 12 }}>
-              No se encontraron historias con los filtros actuales.
+            <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>
+              No se encontraron novelas con los filtros actuales.
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: 14
+            }}>
               {filteredNovels.map(novel => {
-                const isMyNovel = user && (novel.authorId === user.uid || (profile as any)?.role === 'admin');
+                const isAuthor = user && user.uid === novel.authorId;
+                const isAdmin = profile?.role === 'admin';
 
                 return (
-                  <div key={novel.id} style={{ position: 'relative', background: '#161622', border: `1px solid ${novel.isNsfw ? '#f43f5e55' : '#28283a'}`, borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    
-                    {/* Botones Flotantes de Moderación */}
-                    <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 4, zIndex: 10 }}>
-                      <button
-                        onClick={() => handleReportNovel(novel)}
-                        style={{ background: 'rgba(15, 15, 20, 0.85)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 4, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11 }}
-                        title="Reportar historia"
-                      >
-                        🚩
-                      </button>
-
-                      {isMyNovel && (
-                        <button
-                          onClick={() => handleDeleteNovel(novel.id, novel.title)}
-                          style={{ background: 'rgba(239, 68, 68, 0.9)', color: '#fff', border: 'none', borderRadius: 4, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11 }}
-                          title="Eliminar mi historia"
-                        >
-                          🗑️
-                        </button>
+                  <div
+                    key={novel.id}
+                    style={{
+                      background: '#13131e',
+                      border: '1px solid #232336',
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.5)'
+                    }}
+                  >
+                    {/* Portada */}
+                    <div style={{
+                      height: 110,
+                      background: novel.coverUrl ? `url(${novel.coverUrl}) center/cover no-repeat` : '#1c1c2b',
+                      position: 'relative'
+                    }}>
+                      {novel.isNsfw && (
+                        <span style={{ position: 'absolute', top: 6, left: 6, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 900, padding: '2px 5px', borderRadius: 4 }}>
+                          18+
+                        </span>
                       )}
+
+                      <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 4 }}>
+                        <button
+                          onClick={() => copyNovelId(novel.id)}
+                          title="Copiar ID de la novela"
+                          style={{ background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', padding: '2px 5px', borderRadius: 4, fontSize: 9, cursor: 'pointer' }}
+                        >
+                          📋 ID
+                        </button>
+                        {(isAuthor || isAdmin) && (
+                          <button
+                            onClick={() => handleDeleteNovel(novel.id, novel.title)}
+                            title="Eliminar novela"
+                            style={{ background: 'rgba(239,68,68,0.8)', border: 'none', color: '#fff', padding: '2px 5px', borderRadius: 4, fontSize: 9, cursor: 'pointer' }}
+                          >
+                            🗑️
+                          </button>
+                        )}
+                        {!isAuthor && (
+                          <button
+                            onClick={() => handleReportNovel(novel)}
+                            title="Reportar novela"
+                            style={{ background: 'rgba(0,0,0,0.6)', border: 'none', color: '#f59e0b', padding: '2px 5px', borderRadius: 4, fontSize: 9, cursor: 'pointer' }}
+                          >
+                            ⚠️
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    {novel.isNsfw && (
-                      <span style={{ position: 'absolute', top: 6, left: 6, background: '#f43f5e', color: '#fff', fontSize: 8, fontWeight: 900, padding: '2px 5px', borderRadius: 4, zIndex: 10 }}>
-                        +18
-                      </span>
-                    )}
-
-                    {novel.coverUrl ? (
-                      <img src={novel.coverUrl} alt={novel.title} style={{ width: '100%', height: 110, objectFit: 'cover' }} />
-                    ) : (
-                      <div style={{ height: 110, background: '#0c0c14', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
-                        📖
-                      </div>
-                    )}
-
-                    <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6, flex: 1, justifyContent: 'space-between' }}>
+                    {/* Información */}
+                    <div style={{ padding: 10, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8 }}>
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {novel.title}
-                        </div>
-                        <div style={{ fontSize: 9, color: '#38bdf8' }}>por {novel.authorName}</div>
-                        
-                        <p style={{ fontSize: 10, color: '#94a3b8', margin: '4px 0', lineClamp: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        <strong style={{ fontSize: 13, color: '#f3f4f6', display: 'block', lineHeight: 1.2 }}>{novel.title}</strong>
+                        <span style={{ fontSize: 10, color: '#38bdf8', display: 'block', marginTop: 2 }}>
+                          Por: {novel.authorName || 'Autor'}
+                        </span>
+
+                        <p style={{ fontSize: 10, color: '#94a3b8', margin: '4px 0 0 0', maxHeight: 36, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                           {novel.description || 'Sin descripción disponible.'}
                         </p>
-
-                        <div 
-                          onClick={() => copyNovelId(novel.id)}
-                          style={{ fontSize: 8, color: '#64748b', cursor: 'pointer' }}
-                          title="Copiar ID de la novela"
-                        >
-                          ID: {novel.id.slice(0, 8)}... 📋
-                        </div>
 
                         {novel.tags && novel.tags.length > 0 && (
                           <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 4 }}>
@@ -485,6 +515,7 @@ const handlePlayDirectly = (novel: CommunityNovel) => {
                         )}
                       </div>
 
+                      {/* Acciones */}
                       <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
                         <button
                           onClick={() => handlePlayDirectly(novel)}
