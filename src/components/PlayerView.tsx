@@ -7,7 +7,8 @@ import {
 } from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
-const SLOT_POSITIONS_X: Record<string, string> = {
+// Coordenadas relativas (%) para Personajes en Escenas (eje Y desde el suelo: bottom)
+const STAGE_SLOTS_X: Record<string, string> = {
   'far-left': '12%',
   'left': '25%',
   'center-left': '38%',
@@ -17,7 +18,7 @@ const SLOT_POSITIONS_X: Record<string, string> = {
   'far-right': '88%'
 };
 
-const SLOT_POSITIONS_Y: Record<string, string> = {
+const STAGE_SLOTS_Y: Record<string, string> = {
   'deep_sink': '-25%',
   'sink': '-12%',
   'floor': '0%',
@@ -25,6 +26,27 @@ const SLOT_POSITIONS_Y: Record<string, string> = {
   'elevated': '24%',
   'floating': '36%',
   'sky': '48%'
+};
+
+// Coordenadas relativas (%) para Menús y Pantallas Finales (eje Y desde arriba: top)
+const MENU_SLOTS_X: Record<string, number> = {
+  'far-left': 12,
+  'left': 25,
+  'center-left': 38,
+  'center': 50,
+  'center-right': 62,
+  'right': 75,
+  'far-right': 88
+};
+
+const MENU_SLOTS_Y: Record<string, number> = {
+  'sky': 18,
+  'floating': 30,
+  'elevated': 44,
+  'ground': 58,
+  'floor': 72,
+  'sink': 85,
+  'deep_sink': 95
 };
 
 const SCALE_PERCENTAGES: Record<string, string> = {
@@ -271,13 +293,11 @@ export default function PlayerView() {
         startPlaytest(undefined, true);
         break;
       case 'jump_to_scene':
-        if (element.action.targetSceneId) {
-          jumpToScene(
-            element.action.targetSceneId,
-            element.action.targetBranchId || 'main',
-            element.action.targetEventIndex || 0
-          );
-        }
+        jumpToScene(
+          element.action.targetSceneId || currentScene?.id || '',
+          element.action.targetBranchId || 'main',
+          element.action.targetEventIndex || 0
+        );
         break;
       case 'jump_to_menu':
         if (element.action.targetMenuId) {
@@ -329,6 +349,7 @@ export default function PlayerView() {
     const customBg = el.customBgColor;
     const customColor = el.customTextColor;
     const bgImage = el.customBgImage;
+    const customFontSize = (el as any).fontSizePx ? `${(el as any).fontSizePx}px` : undefined;
 
     if (el.type === 'button') {
       const baseBg =
@@ -336,7 +357,7 @@ export default function PlayerView() {
         (el.styleVariant === 'danger'
           ? '#dc2626'
           : el.styleVariant === 'glass'
-          ? 'rgba(15, 23, 42, 0.75)'
+          ? 'rgba(15, 23, 42, 0.85)'
           : el.styleVariant === 'secondary'
           ? '#1e293b'
           : '#2563eb');
@@ -345,7 +366,7 @@ export default function PlayerView() {
         background: bgImage ? `url(${bgImage}) center/cover no-repeat` : baseBg,
         color: customColor || '#fff',
         border: bgImage
-          ? '1px solid rgba(255,255,255,0.3)'
+          ? '1px solid rgba(255,255,255,0.4)'
           : el.styleVariant === 'danger'
           ? '1px solid #ef4444'
           : el.styleVariant === 'glass'
@@ -353,45 +374,56 @@ export default function PlayerView() {
           : 'none',
         backdropFilter: el.styleVariant === 'glass' ? 'blur(10px)' : undefined,
         borderRadius: 8,
-        padding: isPortrait ? '8px 16px' : '10px 24px',
+        padding: '0 12px',
         fontWeight: 800,
-        fontSize: isPortrait ? 12 : 14,
+        fontSize: customFontSize || 'clamp(10px, 2.4cqw, 15px)',
         cursor: 'pointer',
-        boxShadow: '0 4px 18px rgba(0,0,0,0.4)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.6)',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
+        width: '100%',
+        height: '100%',
+        boxSizing: 'border-box',
         whiteSpace: 'nowrap'
       };
     }
 
     if (el.type === 'card') {
       return {
-        background:
-          customBg ||
-          (el.styleVariant === 'glass' ? 'rgba(15, 23, 42, 0.75)' : '#1e293b'),
+        background: customBg || (el.styleVariant === 'glass' ? 'rgba(15, 23, 42, 0.75)' : '#1e293b'),
         backdropFilter: el.styleVariant === 'glass' ? 'blur(10px)' : undefined,
         color: customColor || '#e2e8f0',
         border: '1px solid rgba(255,255,255,0.15)',
         borderRadius: 8,
-        padding: isPortrait ? '8px 14px' : '10px 20px',
+        padding: 8,
         fontWeight: 700,
-        fontSize: isPortrait ? 12 : 14,
-        boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
-        textAlign: 'center'
+        fontSize: customFontSize || 'clamp(10px, 2.2cqw, 14px)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        boxSizing: 'border-box'
       };
     }
 
     return {
       fontSize:
-        el.styleVariant === 'title' ? (isPortrait ? 20 : 28) : isPortrait ? 13 : 16,
+        customFontSize ||
+        (el.styleVariant === 'title' ? 'clamp(14px, 4cqw, 24px)' : 'clamp(11px, 2.4cqw, 15px)'),
       fontWeight: el.styleVariant === 'title' ? 900 : 600,
-      color:
-        customColor ||
-        (el.styleVariant === 'title' ? '#38bdf8' : '#cbd5e1'),
-      textShadow: '0 4px 16px rgba(0,0,0,0.9), 0 0 20px rgba(56,189,248,0.4)',
+      color: customColor || (el.styleVariant === 'title' ? '#38bdf8' : '#cbd5e1'),
+      textShadow: '0 2px 8px rgba(0,0,0,0.9)',
       background: 'none',
       border: 'none',
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
       textAlign: 'center',
       whiteSpace: 'nowrap'
     };
@@ -415,7 +447,10 @@ export default function PlayerView() {
       }}
     >
       <style>{`
-        /* Animaciones en eje vertical/relativo puro para evitar desfase horizontal */
+        .canvas-container {
+          container-type: inline-size;
+        }
+
         @keyframes jumpAnim {
           0% { transform: translateY(0); }
           50% { transform: translateY(-25px); }
@@ -492,6 +527,7 @@ export default function PlayerView() {
       {/* Lienzo del Juego */}
       <div
         onClick={handleScreenClick}
+        className="canvas-container"
         style={{
           position: 'relative',
           width: isPortrait ? '100%' : 'auto',
@@ -619,18 +655,26 @@ export default function PlayerView() {
             {activeMenuScreen.elements?.map(el => {
               if (!checkCondition(el.condition)) return null;
 
-              const slotX = SLOT_POSITIONS_X[String(el.slotX || 'center')] || '50%';
-              const slotY = SLOT_POSITIONS_Y[String(el.verticalSlot || 'ground')] || '12%';
+              const slotX = MENU_SLOTS_X[String(el.slotX || 'center')] ?? 50;
+              const slotY = MENU_SLOTS_Y[String(el.verticalSlot || 'ground')] ?? 58;
               const style = getElementStyle(el);
+
+              const widthVal = (el as any).widthPercent ? `${(el as any).widthPercent}%` : el.type === 'button' ? '30%' : 'auto';
+              const heightVal = (el as any).heightPercent ? `${(el as any).heightPercent}%` : el.type === 'button' ? '9%' : 'auto';
 
               return (
                 <div
                   key={el.id}
                   style={{
                     position: 'absolute',
-                    top: slotY,
-                    left: slotX,
+                    top: `${slotY}%`,
+                    left: `${slotX}%`,
                     transform: 'translate(-50%, -50%)',
+                    width: widthVal,
+                    height: heightVal,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     zIndex: 30
                   }}
                 >
@@ -654,8 +698,8 @@ export default function PlayerView() {
                 const charDef = activePlayProject.characters[inst.characterId];
                 if (!charDef) return null;
 
-                const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
-                const slotY = SLOT_POSITIONS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+                const slotX = STAGE_SLOTS_X[String(inst.slot || 'center')] || '50%';
+                const slotY = STAGE_SLOTS_Y[String(inst.verticalSlot || 'floor')] || '0%';
                 const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
                 const resolvedSprite =
@@ -810,7 +854,7 @@ export default function PlayerView() {
               </div>
             )}
 
-            {/* Fin de la Escena / Historia */}
+            {/* Fin de la Historia */}
             {!currentEvent && (
               <div
                 style={{
