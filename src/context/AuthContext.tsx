@@ -9,6 +9,7 @@ export interface UserProfile {
   email: string;
   avatarUrl: string;
   bio?: string;
+  role?: 'admin' | 'moderator' | 'user' | string;
   followersCount: number;
   followingCount: number;
 }
@@ -43,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             displayName: currentUser.displayName || 'Creador',
             email: currentUser.email || '',
             avatarUrl: currentUser.photoURL || `https://api.dicebear.com/7.x/identicon/svg?seed=${currentUser.uid}`,
+            role: 'user',
             followersCount: 0,
             followingCount: 0
           };
