@@ -11,18 +11,18 @@ import {
   LibraryNovelEntry, 
   SaveSlot, 
   Scene,
-  PlaySessionInfo
+  PlaySessionInfo,
+  MenuScreen,
+  MenuElement
 } from '../types';
 import { mockProject } from '../mockData';
 
 interface NovelContextType {
-  // Borrador de trabajo (Editor)
   editingProject: NovelProject;
   setEditingProject: React.Dispatch<React.SetStateAction<NovelProject>>;
   project: NovelProject;
   setProject: React.Dispatch<React.SetStateAction<NovelProject>>;
 
-  // Proyecto en Reproducción y Metadatos de Sesión (Player)
   activePlayProject: NovelProject;
   playSessionInfo: PlaySessionInfo;
   launchPlayer: (
@@ -33,17 +33,16 @@ interface NovelContextType {
       novelId?: string;
       fromStart?: boolean;
       customInitialState?: PlayerGameState;
+      initialMenuId?: string;
     }
   ) => void;
   loadProjectToEditor: (projectToEdit: NovelProject, novelId?: string | null) => void;
 
-  // Persistencia y Portabilidad del Borrador
   saveProjectToLocal: () => void;
   exportProjectJson: () => void;
   importProjectJson: (jsonString: string) => boolean;
   resetProjectToDefault: () => void;
 
-  // Navegación en el Editor
   currentSceneId: string;
   setCurrentSceneId: (id: string) => void;
   currentBranchId: string;
@@ -51,7 +50,6 @@ interface NovelContextType {
   activeLibraryNovelId: string | null;
   setActiveLibraryNovelId: (id: string | null) => void;
 
-  // Mutaciones del Borrador
   addOrUpdateCharacter: (character: Character) => void;
   deleteCharacter: (characterId: string) => void;
   createBranch: (name: string) => string;
@@ -65,17 +63,24 @@ interface NovelContextType {
   deleteVariable: (varName: string) => void;
   deleteBackgroundFromGallery: (bgId: string) => void;
 
+  // Menús y Pantallas Personalizadas
+  addOrUpdateMenuScreen: (screen: MenuScreen) => void;
+  deleteMenuScreen: (screenId: string) => void;
+  addOrUpdateMenuElement: (menuId: string, element: MenuElement) => void;
+  deleteMenuElement: (menuId: string, elementId: string) => void;
+
   // Runtime del Reproductor
   gameState: PlayerGameState;
   setPlayerName: (name: string) => void;
-  startPlaytest: (customInitialState?: PlayerGameState, fromStart?: boolean) => void;
+  startPlaytest: (customInitialState?: PlayerGameState, fromStart?: boolean, initialMenuId?: string) => void;
   advancePlayerEvent: () => void;
   selectChoiceOption: (optionId: string) => void;
-  jumpToScene: (sceneId: string) => void;
+  jumpToScene: (sceneId: string, branchId?: string, eventIndex?: number) => void;
   jumpToBranch: (branchId: string) => void;
+  jumpToMenu: (menuId: string) => void;
+  applyVariableChanges: (changes: VariableChange[], runtimeVars: Record<string, any>) => Record<string, any>;
   parseTextTokens: (text: string) => string;
 
-  // Biblioteca y Guardado de Partidas
   library: Record<string, LibraryNovelEntry>;
   saveCurrentProjectToLibrary: () => void;
   loadProjectFromLibrary: (novelId: string) => boolean;
@@ -149,6 +154,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       currentSceneId: firstSceneId,
       currentBranchId: 'main',
       currentEventIndex: 0,
+      currentMenuId: null,
       playerName: editingProject.defaultPlayerName || 'Protagonista',
       runtimeVariables: initialVars,
       runtimeCharacters: JSON.parse(JSON.stringify(editingProject.characters || {})),
@@ -172,6 +178,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       novelId?: string;
       fromStart?: boolean;
       customInitialState?: PlayerGameState;
+      initialMenuId?: string;
     }
   ) => {
     const isEditorPlaytest = options?.isEditorPlaytest ?? false;
@@ -179,6 +186,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const novelId = options?.novelId || novelToPlay.id;
     const fromStart = options?.fromStart ?? false;
     const customInitialState = options?.customInitialState;
+    const initialMenuId = options?.initialMenuId;
 
     setActivePlayProject(novelToPlay);
     setPlaySessionInfo({
@@ -206,11 +214,19 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       initialVars[v.name] = v.defaultValue;
     });
 
+    let startingMenu: string | null = null;
+    if (initialMenuId) {
+      startingMenu = initialMenuId;
+    } else if (fromStart && novelToPlay.startScreenType === 'menu' && novelToPlay.startMenuId) {
+      startingMenu = novelToPlay.startMenuId;
+    }
+
     setGameState({
       currentChapterId: '',
       currentSceneId: targetSceneId,
       currentBranchId: targetBranchId,
       currentEventIndex: 0,
+      currentMenuId: startingMenu,
       playerName: novelToPlay.defaultPlayerName || 'Protagonista',
       runtimeVariables: initialVars,
       runtimeCharacters: JSON.parse(JSON.stringify(novelToPlay.characters || {})),
@@ -226,13 +242,14 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setActiveLibraryNovelId(novelId ?? null);
   };
 
-  const startPlaytest = (customInitialState?: PlayerGameState, fromStart = false) => {
+  const startPlaytest = (customInitialState?: PlayerGameState, fromStart = false, initialMenuId?: string) => {
     launchPlayer(editingProject, {
       isEditorPlaytest: true,
       canEdit: true,
       novelId: activeLibraryNovelId || editingProject.id,
       fromStart,
-      customInitialState
+      customInitialState,
+      initialMenuId
     });
   };
 
@@ -431,6 +448,81 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // Gestión de Pantallas de Menús y Finales
+  const addOrUpdateMenuScreen = (screen: MenuScreen) => {
+    setEditingProject(prev => ({
+      ...prev,
+      customScreens: {
+        ...(prev.customScreens || {}),
+        [screen.id]: screen
+      },
+      updatedAt: Date.now()
+    }));
+  };
+
+  const deleteMenuScreen = (screenId: string) => {
+    setEditingProject(prev => {
+      const copy = { ...(prev.customScreens || {}) };
+      delete copy[screenId];
+      let nextStartMenuId = prev.startMenuId;
+      if (nextStartMenuId === screenId) {
+        nextStartMenuId = undefined;
+      }
+      return {
+        ...prev,
+        startMenuId: nextStartMenuId,
+        customScreens: copy,
+        updatedAt: Date.now()
+      };
+    });
+  };
+
+  const addOrUpdateMenuElement = (menuId: string, element: MenuElement) => {
+    setEditingProject(prev => {
+      const targetMenu = prev.customScreens?.[menuId];
+      if (!targetMenu) return prev;
+
+      const elements = [...(targetMenu.elements || [])];
+      const existingIdx = elements.findIndex(e => e.id === element.id);
+      if (existingIdx >= 0) {
+        elements[existingIdx] = element;
+      } else {
+        elements.push(element);
+      }
+
+      return {
+        ...prev,
+        customScreens: {
+          ...(prev.customScreens || {}),
+          [menuId]: {
+            ...targetMenu,
+            elements
+          }
+        },
+        updatedAt: Date.now()
+      };
+    });
+  };
+
+  const deleteMenuElement = (menuId: string, elementId: string) => {
+    setEditingProject(prev => {
+      const targetMenu = prev.customScreens?.[menuId];
+      if (!targetMenu) return prev;
+
+      return {
+        ...prev,
+        customScreens: {
+          ...(prev.customScreens || {}),
+          [menuId]: {
+            ...targetMenu,
+            elements: (targetMenu.elements || []).filter(e => e.id !== elementId)
+          }
+        },
+        updatedAt: Date.now()
+      };
+    });
+  };
+
   const saveGameToSlot = (slotNumber: number) => {
     const novelId = playSessionInfo.novelId || activePlayProject.id || 'current_project';
     const scenes = getProjectScenes(activePlayProject);
@@ -586,15 +678,16 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }));
   };
 
-  const jumpToScene = (sceneId: string) => {
+  const jumpToScene = (sceneId: string, branchId = 'main', eventIndex = 0) => {
     const scenes = getProjectScenes(activePlayProject);
     const found = scenes.find(s => s.id === sceneId);
     if (found) {
       setGameState(prev => ({
         ...prev,
+        currentMenuId: null,
         currentSceneId: sceneId,
-        currentBranchId: 'main',
-        currentEventIndex: 0
+        currentBranchId: branchId,
+        currentEventIndex: eventIndex
       }));
     }
   };
@@ -602,8 +695,16 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const jumpToBranch = (branchId: string) => {
     setGameState(prev => ({
       ...prev,
+      currentMenuId: null,
       currentBranchId: branchId,
       currentEventIndex: 0
+    }));
+  };
+
+  const jumpToMenu = (menuId: string) => {
+    setGameState(prev => ({
+      ...prev,
+      currentMenuId: menuId
     }));
   };
 
@@ -642,20 +743,46 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const currentEvent = timeline[prev.currentEventIndex];
       if (!currentEvent) return prev;
 
-      const rawSpeakerName = currentEvent.type === 'dialogue'
-        ? (currentEvent.speakerId === 'narrator' ? 'Narrador' : (activePlayProject.characters[currentEvent.speakerId]?.name || 'Personaje'))
-        : 'Decisión';
+      let rawSpeakerName = '';
+      if (currentEvent.type === 'dialogue') {
+        if (currentEvent.speakerId === 'none' || !currentEvent.speakerId) {
+          rawSpeakerName = '';
+        } else if (currentEvent.speakerId === 'narrator') {
+          rawSpeakerName = 'Narrador';
+        } else {
+          rawSpeakerName = activePlayProject.characters[currentEvent.speakerId]?.name || 'Personaje';
+        }
+      } else {
+        rawSpeakerName = 'Decisión';
+      }
 
       const parsedText = currentEvent.type === 'dialogue' ? parseTextTokens(currentEvent.text) : '';
-      const newHistoryEntry = currentEvent.type === 'dialogue' ? `${rawSpeakerName}: ${parsedText}` : null;
+      const newHistoryEntry = currentEvent.type === 'dialogue' 
+        ? (rawSpeakerName ? `${rawSpeakerName}: ${parsedText}` : parsedText)
+        : null;
       const nextHistory = newHistoryEntry ? [...prev.history, newHistoryEntry] : prev.history;
 
+      // 1. Salto hacia un Menú o Pantalla Final
+      if (currentEvent.type === 'dialogue' && currentEvent.jumpToMenuId) {
+        const shouldJump = checkCondition(currentEvent.jumpCondition, prev.runtimeVariables);
+        if (shouldJump) {
+          return {
+            ...prev,
+            history: nextHistory,
+            currentMenuId: currentEvent.jumpToMenuId,
+            activeEffect: currentEvent.effect || 'none'
+          };
+        }
+      }
+
+      // 2. Salto condicional de rama
       if (currentEvent.type === 'dialogue' && currentEvent.jumpToBranchId) {
         const shouldJump = checkCondition(currentEvent.jumpCondition, prev.runtimeVariables);
         if (shouldJump) {
           return {
             ...prev,
             history: nextHistory,
+            currentMenuId: null,
             currentBranchId: currentEvent.jumpToBranchId,
             currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
             activeEffect: currentEvent.effect || 'none'
@@ -663,6 +790,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
+      // 3. Siguiente viñeta en la escena
       if (prev.currentEventIndex < timeline.length - 1) {
         return {
           ...prev,
@@ -672,6 +800,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
       }
 
+      // 4. Siguiente escena secuencial
       const currentIdx = scenes.findIndex(item => item.id === currentScene.id);
       if (currentIdx !== -1 && currentIdx < scenes.length - 1) {
         const nextScene = scenes[currentIdx + 1];
@@ -732,8 +861,8 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!currentScene) return;
 
     const timeline: TimelineEvent[] = gameState.currentBranchId === 'main'
-      ? (currentScene.timeline || [])
-      : (currentScene.branches?.[gameState.currentBranchId]?.timeline || []);
+      ? (currentScene?.timeline || [])
+      : (currentScene?.branches?.[gameState.currentBranchId]?.timeline || []);
 
     const currentEvent = timeline[gameState.currentEventIndex];
     if (currentEvent?.type !== 'choice') return;
@@ -760,11 +889,14 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
     }
 
-    if (opt.jumpToSceneId) {
+    if (opt.jumpToMenuId) {
+      jumpToMenu(opt.jumpToMenuId);
+    } else if (opt.jumpToSceneId) {
       jumpToScene(opt.jumpToSceneId);
     } else if (opt.jumpToBranchId) {
       setGameState(prev => ({
         ...prev,
+        currentMenuId: null,
         currentBranchId: opt.jumpToBranchId!,
         currentEventIndex: opt.jumpToEventIndex ?? 0
       }));
@@ -806,6 +938,10 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addOrUpdateVariable,
         deleteVariable,
         deleteBackgroundFromGallery,
+        addOrUpdateMenuScreen,
+        deleteMenuScreen,
+        addOrUpdateMenuElement,
+        deleteMenuElement,
         gameState,
         setPlayerName,
         startPlaytest,
@@ -813,6 +949,8 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         selectChoiceOption,
         jumpToScene,
         jumpToBranch,
+        jumpToMenu,
+        applyVariableChanges,
         parseTextTokens,
         library,
         saveCurrentProjectToLibrary,
