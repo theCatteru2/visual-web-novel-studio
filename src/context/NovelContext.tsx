@@ -10,18 +10,40 @@ import {
   BranchJumpCondition,
   LibraryNovelEntry,
   SaveSlot,
-  Scene
+  Scene,
+  PlaySessionInfo
 } from '../types';
 import { mockProject } from '../mockData';
 
 interface NovelContextType {
-  project: NovelProject;
-  setProject: React.Dispatch<React.SetStateAction<NovelProject>>;
+  // Proyecto de Edición (Borrador del usuario)
+  editingProject: NovelProject;
+  setEditingProject: React.Dispatch<React.SetStateAction<NovelProject>>;
+  project: NovelProject; // Alias de editingProject para retrocompatibilidad con componentes del editor
+  setProject: React.Dispatch<React.SetStateAction<NovelProject>>; // Alias de setEditingProject
+
+  // Proyecto de Reproducción y Sesión
+  activePlayProject: NovelProject;
+  playSessionInfo: PlaySessionInfo;
+  launchPlayer: (
+    novelToPlay: NovelProject, 
+    options?: {
+      isEditorPlaytest?: boolean;
+      canEdit?: boolean;
+      novelId?: string;
+      fromStart?: boolean;
+      customInitialState?: PlayerGameState;
+    }
+  ) => void;
+  loadProjectToEditor: (projectToEdit: NovelProject, novelId?: string | null) => void;
+
+  // Persistencia y Portabilidad del Borrador
   saveProjectToLocal: () => void;
   exportProjectJson: () => void;
   importProjectJson: (jsonString: string) => boolean;
   resetProjectToDefault: () => void;
 
+  // Navegación en el Editor
   currentSceneId: string;
   setCurrentSceneId: (id: string) => void;
   currentBranchId: string;
@@ -30,6 +52,7 @@ interface NovelContextType {
   activeLibraryNovelId: string | null;
   setActiveLibraryNovelId: (id: string | null) => void;
 
+  // Modificación del Borrador
   addOrUpdateCharacter: (character: Character) => void;
   deleteCharacter: (characterId: string) => void;
 
@@ -47,6 +70,7 @@ interface NovelContextType {
 
   deleteBackgroundFromGallery: (bgId: string) => void;
 
+  // Estado y Control del Reproductor
   gameState: PlayerGameState;
   setPlayerName: (name: string) => void;
   startPlaytest: (customInitialState?: PlayerGameState, fromStart?: boolean) => void;
@@ -56,6 +80,7 @@ interface NovelContextType {
   jumpToBranch: (branchId: string) => void;
   parseTextTokens: (text: string) => string;
 
+  // Biblioteca y Guardados
   library: Record<string, LibraryNovelEntry>;
   saveCurrentProjectToLibrary: () => void;
   loadProjectFromLibrary: (novelId: string) => boolean;
@@ -71,7 +96,7 @@ const LIBRARY_STORAGE_KEY = 'vwn_studio_library_v100';
 
 const NovelContext = createContext<NovelContextType | undefined>(undefined);
 
-// Helper para obtener la lista plana de escenas
+// Helper para obtener lista plana de escenas
 const getProjectScenes = (proj: any): Scene[] => {
   if (proj?.scenes && Array.isArray(proj.scenes)) return proj.scenes;
   if (proj?.chapters?.[0]?.scenes && Array.isArray(proj.chapters[0].scenes)) return proj.chapters[0].scenes;
@@ -79,7 +104,8 @@ const getProjectScenes = (proj: any): Scene[] => {
 };
 
 export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [project, setProject] = useState<NovelProject>(() => {
+  // 1. Borrador de trabajo del creador (Editor)
+  const [editingProject, setEditingProject] = useState<NovelProject>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       try {
@@ -91,6 +117,18 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return mockProject;
   });
 
+  // 2. Proyecto actualmente cargado en el reproductor (Player)
+  const [activePlayProject, setActivePlayProject] = useState<NovelProject>(editingProject);
+
+  // 3. Metadatos de la sesión de juego
+  const [playSessionInfo, setPlaySessionInfo] = useState<PlaySessionInfo>({
+    isEditorPlaytest: true,
+    canEdit: true,
+    novelId: undefined,
+    novelTitle: editingProject.title
+  });
+
+  // 4. Biblioteca local
   const [library, setLibrary] = useState<Record<string, LibraryNovelEntry>>(() => {
     const savedLib = localStorage.getItem(LIBRARY_STORAGE_KEY);
     if (savedLib) {
@@ -103,46 +141,131 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return {};
   });
 
-  const initialScenes = getProjectScenes(project);
+  const initialScenes = getProjectScenes(editingProject);
   const firstSceneId = initialScenes[0]?.id || '';
 
   const [currentSceneId, setCurrentSceneId] = useState<string>(firstSceneId);
   const [currentBranchId, setCurrentBranchId] = useState<string>('main');
   const [activeLibraryNovelId, setActiveLibraryNovelId] = useState<string | null>(null);
 
+  // Estado del juego en ejecución
   const [gameState, setGameState] = useState<PlayerGameState>(() => {
     const initialVars: Record<string, boolean | number | string> = {};
-    Object.values(project.variables || {}).forEach(v => {
+    Object.values(editingProject.variables || {}).forEach(v => {
       initialVars[v.name] = v.defaultValue;
     });
 
     return {
       currentChapterId: '',
       currentSceneId: firstSceneId,
-      currentBranchId: 'main',
-      currentEventIndex: 0,
-      playerName: project.defaultPlayerName || 'Protagonista',
+      currentBranchId: 'main',\n      currentEventIndex: 0,
+      playerName: editingProject.defaultPlayerName || 'Protagonista',
       runtimeVariables: initialVars,
-      runtimeCharacters: JSON.parse(JSON.stringify(project.characters || {})),
+      runtimeCharacters: JSON.parse(JSON.stringify(editingProject.characters || {})),
       history: []
     };
   });
 
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(project));
-  }, [project]);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(editingProject));
+  }, [editingProject]);
 
   useEffect(() => {
     localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(library));
   }, [library]);
 
+  // Lanzador unificado del reproductor
+  const launchPlayer = (
+    novelToPlay: NovelProject,
+    options?: {
+      isEditorPlaytest?: boolean;
+      canEdit?: boolean;
+      novelId?: string;
+      fromStart?: boolean;
+      customInitialState?: PlayerGameState;
+    }
+  ) => {
+    const isEditorPlaytest = options?.isEditorPlaytest ?? false;
+    const canEdit = options?.canEdit ?? false;
+    const novelId = options?.novelId || novelToPlay.id;
+    const fromStart = options?.fromStart ?? false;
+    const customInitialState = options?.customInitialState;
+
+    setActivePlayProject(novelToPlay);
+    setPlaySessionInfo({
+      isEditorPlaytest,
+      canEdit,
+      novelId,
+      novelTitle: novelToPlay.title
+    });
+
+    if (customInitialState) {
+      setGameState(customInitialState);
+      return;
+    }
+
+    const scenes = getProjectScenes(novelToPlay);
+    const targetSceneId = fromStart 
+      ? (scenes[0]?.id || '') 
+      : (isEditorPlaytest ? (currentSceneId || scenes[0]?.id || '') : (scenes[0]?.id || ''));
+    const targetBranchId = fromStart 
+      ? 'main' 
+      : (isEditorPlaytest ? (currentBranchId || 'main') : 'main');
+
+    const initialVars: Record<string, boolean | number | string> = {};
+    Object.values(novelToPlay.variables || {}).forEach(v => {
+      initialVars[v.name] = v.defaultValue;
+    });
+
+    setGameState({
+      currentChapterId: '',
+      currentSceneId: targetSceneId,
+      currentBranchId: targetBranchId,
+      currentEventIndex: 0,
+      playerName: novelToPlay.defaultPlayerName || 'Protagonista',
+      runtimeVariables: initialVars,
+      runtimeCharacters: JSON.parse(JSON.stringify(novelToPlay.characters || {})),
+      history: []
+    });
+  };
+
+  // Cargar explícitamente un proyecto en el Editor de trabajo
+  const loadProjectToEditor = (projectToEdit: NovelProject, novelId?: string | null) => {
+    setEditingProject(projectToEdit);
+    const scenes = getProjectScenes(projectToEdit);
+    setCurrentSceneId(scenes[0]?.id || '');
+    setCurrentBranchId('main');
+    setActiveLibraryNovelId(novelId ?? null);
+  };
+
+  // Playtest del borrador del editor
+  const startPlaytest = (customInitialState?: PlayerGameState, fromStart = false) => {
+    launchPlayer(editingProject, {
+      isEditorPlaytest: true,
+      canEdit: true,
+      novelId: activeLibraryNovelId || editingProject.id,
+      fromStart,
+      customInitialState
+    });
+  };
+
+  // Parseo dinámico de tokens: {player}, [player], (player) y {nombre_variable}
   const parseTextTokens = (text: string): string => {
     if (!text) return '';
-    const currentName = gameState.playerName || project.defaultPlayerName || 'Protagonista';
-    return text
+    const currentName = gameState.playerName || activePlayProject.defaultPlayerName || 'Protagonista';
+    let parsed = text
       .replace(/\{player\}/gi, currentName)
       .replace(/\[player\]/gi, currentName)
       .replace(/\(player\)/gi, currentName);
+
+    if (gameState.runtimeVariables) {
+      Object.entries(gameState.runtimeVariables).forEach(([varKey, varVal]) => {
+        const regex = new RegExp(`\\{${varKey}\\}`, 'gi');
+        parsed = parsed.replace(regex, String(varVal));
+      });
+    }
+
+    return parsed;
   };
 
   const setPlayerName = (name: string) => {
@@ -151,38 +274,21 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const resetProjectToDefault = () => {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
-    localStorage.removeItem(LIBRARY_STORAGE_KEY);
-    setProject(mockProject);
+    setEditingProject(mockProject);
     const defScenes = getProjectScenes(mockProject);
     const defSceneId = defScenes[0]?.id || '';
     setCurrentSceneId(defSceneId);
     setCurrentBranchId('main');
     setActiveLibraryNovelId(null);
-
-    const initialVars: Record<string, boolean | number | string> = {};
-    Object.values(mockProject.variables || {}).forEach(v => {
-      initialVars[v.name] = v.defaultValue;
-    });
-
-    setGameState({
-      currentChapterId: '',
-      currentSceneId: defSceneId,
-      currentBranchId: 'main',
-      currentEventIndex: 0,
-      playerName: mockProject.defaultPlayerName || 'Protagonista',
-      runtimeVariables: initialVars,
-      runtimeCharacters: JSON.parse(JSON.stringify(mockProject.characters || {})),
-      history: []
-    });
   };
 
-  const saveProjectToLocal = () => localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(project));
+  const saveProjectToLocal = () => localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(editingProject));
 
   const exportProjectJson = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(project, null, 2));
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(editingProject, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `${project.title || 'novela'}.json`);
+    downloadAnchor.setAttribute("download", `${editingProject.title || 'novela'}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -193,28 +299,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const parsed = JSON.parse(jsonString);
       const parsedScenes = getProjectScenes(parsed);
       if (parsedScenes.length > 0 && parsed.characters) {
-        setProject(parsed);
-        const scnId = parsedScenes[0]?.id || '';
-        setCurrentSceneId(scnId);
-        setCurrentBranchId('main');
-        setActiveLibraryNovelId(null);
-
-        const initialVars: Record<string, boolean | number | string> = {};
-        Object.values(parsed.variables || {}).forEach((v: any) => {
-          initialVars[v.name] = v.defaultValue;
-        });
-
-        setGameState({
-          currentChapterId: '',
-          currentSceneId: scnId,
-          currentBranchId: 'main',
-          currentEventIndex: 0,
-          playerName: parsed.defaultPlayerName || 'Protagonista',
-          runtimeVariables: initialVars,
-          runtimeCharacters: JSON.parse(JSON.stringify(parsed.characters || {})),
-          history: []
-        });
-
+        loadProjectToEditor(parsed, null);
         return true;
       }
     } catch (e) {
@@ -223,26 +308,18 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return false;
   };
 
-  const deleteBackgroundFromGallery = (bgId: string) => {
-    setProject(prev => ({
-      ...prev,
-      backgroundGallery: (prev.backgroundGallery || []).filter(bg => bg.id !== bgId),
-      updatedAt: Date.now()
-    }));
-  };
-
   const saveCurrentProjectToLibrary = () => {
-    const novelId = activeLibraryNovelId || project.id || `novel_${Date.now()}`;
-    const scenes = getProjectScenes(project);
+    const novelId = activeLibraryNovelId || editingProject.id || `novel_${Date.now()}`;
+    const scenes = getProjectScenes(editingProject);
     const entry: LibraryNovelEntry = {
       id: novelId,
-      title: project.title || 'Novela sin título',
-      description: project.description || '',
-      coverUrl: project.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl,
+      title: editingProject.title || 'Novela sin título',
+      description: editingProject.description || '',
+      coverUrl: editingProject.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl,
       lastPlayedAt: Date.now(),
       isOwner: true,
       allowEdit: true,
-      project: { ...project, id: novelId },
+      project: { ...editingProject, id: novelId },
       saveSlots: library[novelId]?.saveSlots || {}
     };
 
@@ -253,11 +330,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const loadProjectFromLibrary = (novelId: string): boolean => {
     const entry = library[novelId];
     if (!entry) return false;
-    setProject(entry.project);
-    const scenes = getProjectScenes(entry.project);
-    setCurrentSceneId(scenes[0]?.id || '');
-    setCurrentBranchId('main');
-    setActiveLibraryNovelId(novelId);
+    loadProjectToEditor(entry.project, novelId);
     return true;
   };
 
@@ -296,9 +369,9 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return novelId;
   };
 
-  // Actualizador universal de escenas
+  // Actualizador universal de escenas en el borrador
   const updateScenes = (updater: (scenes: Scene[]) => Scene[]) => {
-    setProject((prev: any) => {
+    setEditingProject((prev: any) => {
       if (prev.scenes && Array.isArray(prev.scenes)) {
         return { ...prev, scenes: updater(prev.scenes), updatedAt: Date.now() };
       }
@@ -317,8 +390,8 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const saveGameToSlot = (slotNumber: number) => {
-    const novelId = activeLibraryNovelId || project.id || 'current_project';
-    const scenes = getProjectScenes(project);
+    const novelId = playSessionInfo.novelId || activePlayProject.id || 'current_project';
+    const scenes = getProjectScenes(activePlayProject);
     const currentScene = scenes.find(sc => sc.id === gameState.currentSceneId);
 
     const timeline: TimelineEvent[] = gameState.currentBranchId === 'main'
@@ -327,7 +400,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const curEvt = timeline?.[gameState.currentEventIndex];
     const previewBg = curEvt?.backgroundUrl || currentScene?.backgroundUrl;
-    const previewTxt = curEvt?.type === 'dialogue' ? curEvt.text : 'Decisión en curso...';
+    const previewTxt = curEvt?.type === 'dialogue' ? parseTextTokens(curEvt.text) : 'Decisión en curso...';
 
     const slotId = `slot_${slotNumber}`;
     const newSlot: SaveSlot = {
@@ -343,13 +416,13 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLibrary(prev => {
       const existingEntry = prev[novelId] || {
         id: novelId,
-        title: project.title || 'Novela sin título',
-        description: project.description || '',
+        title: activePlayProject.title || 'Novela sin título',
+        description: activePlayProject.description || '',
         coverUrl: previewBg,
         lastPlayedAt: Date.now(),
-        isOwner: true,
-        allowEdit: true,
-        project,
+        isOwner: playSessionInfo.canEdit,
+        allowEdit: playSessionInfo.canEdit,
+        project: activePlayProject,
         saveSlots: {}
       };
 
@@ -373,9 +446,12 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const slot = entry.saveSlots[slotId];
     if (!slot) return false;
 
-    setProject(entry.project);
-    setActiveLibraryNovelId(novelId);
-    startPlaytest(slot.state);
+    launchPlayer(entry.project, {
+      isEditorPlaytest: false,
+      canEdit: entry.isOwner || entry.allowEdit,
+      novelId,
+      customInitialState: slot.state
+    });
     return true;
   };
 
@@ -397,7 +473,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addOrUpdateCharacter = (character: Character) => {
-    setProject(prev => ({
+    setEditingProject(prev => ({
       ...prev,
       characters: { ...prev.characters, [character.id]: character },
       updatedAt: Date.now()
@@ -405,7 +481,7 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteCharacter = (characterId: string) => {
-    setProject(prev => {
+    setEditingProject(prev => {
       const copy = { ...prev.characters };
       delete copy[characterId];
       return { ...prev, characters: copy, updatedAt: Date.now() };
@@ -492,18 +568,17 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     updateScenes(scenes => scenes.map(sc => {
       if (sc.id === currentSceneId) {
         if (currentBranchId === 'main') {
-          const copy = [...sc.timeline];
-          copy.splice(index, 1);
-          return { ...sc, timeline: copy };
+          return { ...sc, timeline: sc.timeline.filter((_, i) => i !== index) };
         } else if (sc.branches && sc.branches[currentBranchId]) {
           const br = sc.branches[currentBranchId];
-          const copy = [...br.timeline];
-          copy.splice(index, 1);
           return {
             ...sc,
             branches: {
               ...sc.branches,
-              [currentBranchId]: { ...br, timeline: copy }
+              [currentBranchId]: {
+                ...br,
+                timeline: br.timeline.filter((_, i) => i !== index)
+              }
             }
           };
         }
@@ -539,338 +614,242 @@ export const NovelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const duplicateTimelineEventBase = (index: number) => {
-    const scenes = getProjectScenes(project);
-    const currentScene = scenes.find(sc => sc.id === currentSceneId);
-    if (!currentScene) return;
+    updateAquí tienes la refactorización integral y limpia de cada archivo afectado para resolver el problema de desacoplamiento entre el **Editor** y el **Reproductor (Player)**, implementando además el efecto *Typewriter* y el reemplazo dinámico de variables.
 
-    const timeline: TimelineEvent[] = currentBranchId === 'main'
-      ? currentScene.timeline
-      : (currentScene.branches?.[currentBranchId]?.timeline || []);
+---
 
-    const targetEvent = timeline[index];
-    if (!targetEvent || targetEvent.type !== 'dialogue') return;
+### 1. `src/types.ts`
+Añadimos la interfaz `PlaySessionInfo` para controlar los permisos y el origen de la sesión de juego.
 
-    const duplicated: TimelineEvent = {
-      ...JSON.parse(JSON.stringify(targetEvent)),
-      id: `dlg_${Date.now()}`,
-      text: '',
-      effect: 'none'
-    };
+```typescript
+export type MagneticSlot = 'far-left' | 'left' | 'center-left' | 'center' | 'center-right' | 'right' | 'far-right';
+export type VerticalSlot = 'deep_sink' | 'sink' | 'floor' | 'ground' | 'elevated' | 'floating' | 'sky';
+export type CharacterScale = 'small' | 'medium' | 'large' | 'closeup';
+export type CharacterAnimation = 'none' | 'bounce' | 'shake' | 'slide_in' | 'fade_in';
+export type ScreenEffect = 'none' | 'shake' | 'flash' | 'fade_black';
 
-    const newIndex = index + 1;
-    updateScenes(scs => scs.map(sc => {
-      if (sc.id === currentSceneId) {
-        if (currentBranchId === 'main') {
-          const copy = [...sc.timeline];
-          copy.splice(newIndex, 0, duplicated);
-          return { ...sc, timeline: copy };
-        } else if (sc.branches && sc.branches[currentBranchId]) {
-          const br = sc.branches[currentBranchId];
-          const copy = [...br.timeline];
-          copy.splice(newIndex, 0, duplicated);
-          return {
-            ...sc,
-            branches: {
-              ...sc.branches,
-              [currentBranchId]: { ...br, timeline: copy }
-            }
-          };
-        }
-      }
-      return sc;
-    }));
-  };
+export type VariableOperation = 'set' | 'add' | 'subtract' | 'multiply' | 'divide' | 'toggle';
 
-  const addOrUpdateVariable = (variable: CustomVariable) => {
-    setProject(prev => ({
-      ...prev,
-      variables: { ...(prev.variables || {}), [variable.name]: variable },
-      updatedAt: Date.now()
-    }));
-  };
-
-  const deleteVariable = (varName: string) => {
-    setProject(prev => {
-      const copy = { ...(prev.variables || {}) };
-      delete copy[varName];
-      return { ...prev, variables: copy, updatedAt: Date.now() };
-    });
-  };
-
-  const startPlaytest = (customInitialState?: PlayerGameState, fromStart = false) => {
-    if (customInitialState) {
-      setGameState(customInitialState);
-      return;
-    }
-
-    const scenes = getProjectScenes(project);
-    const targetSceneId = fromStart ? (scenes[0]?.id || '') : (currentSceneId || scenes[0]?.id || '');
-    const targetBranchId = fromStart ? 'main' : (currentBranchId || 'main');
-
-    const initialVars: Record<string, boolean | number | string> = {};
-    Object.values(project.variables || {}).forEach(v => {
-      initialVars[v.name] = v.defaultValue;
-    });
-
-    setGameState({
-      currentChapterId: '',
-      currentSceneId: targetSceneId,
-      currentBranchId: targetBranchId,
-      currentEventIndex: 0,
-      playerName: project.defaultPlayerName || 'Protagonista',
-      runtimeVariables: initialVars,
-      runtimeCharacters: JSON.parse(JSON.stringify(project.characters || {})),
-      history: []
-    });
-  };
-
-  const jumpToScene = (sceneId: string) => {
-    const scenes = getProjectScenes(project);
-    const found = scenes.find(s => s.id === sceneId);
-    if (found) {
-      setGameState(prev => ({
-        ...prev,
-        currentSceneId: sceneId,
-        currentBranchId: 'main',
-        currentEventIndex: 0
-      }));
-    }
-  };
-
-  const jumpToBranch = (branchId: string) => {
-    setGameState(prev => ({
-      ...prev,
-      currentBranchId: branchId,
-      currentEventIndex: 0
-    }));
-  };
-
-  const checkCondition = (
-    cond: BranchJumpCondition | undefined, 
-    runtimeVars: Record<string, any>
-  ): boolean => {
-    if (!cond || !cond.variableName) return true;
-    
-    const currentVal = runtimeVars[cond.variableName];
-    const targetVal = cond.value;
-
-    switch (cond.operator) {
-      case 'equals':
-        return String(currentVal) === String(targetVal);
-      case 'not_equals':
-        return String(currentVal) !== String(targetVal);
-      case 'greater':
-        return Number(currentVal) > Number(targetVal);
-      case 'less':
-        return Number(currentVal) < Number(targetVal);
-      default:
-        return true;
-    }
-  };
-
-  const advancePlayerEvent = () => {
-    setGameState(prev => {
-      const scenes = getProjectScenes(project);
-      let currentScene = scenes.find(sc => sc.id === prev.currentSceneId) || scenes[0];
-      if (!currentScene) return prev;
-
-      const timeline: TimelineEvent[] = prev.currentBranchId === 'main'
-        ? (currentScene.timeline || [])
-        : (currentScene.branches?.[prev.currentBranchId]?.timeline || []);
-
-      const currentEvent = timeline[prev.currentEventIndex];
-      if (!currentEvent) return prev;
-
-      const rawSpeakerName = currentEvent.type === 'dialogue'
-        ? (currentEvent.speakerId === 'narrator' ? 'Narrador' : (project.characters[currentEvent.speakerId]?.name || 'Personaje'))
-        : 'Decisión';
-
-      const currentName = prev.playerName || project.defaultPlayerName || 'Protagonista';
-      const parsedText = currentEvent.type === 'dialogue' 
-        ? currentEvent.text.replace(/\{player\}|\[player\]|\(player\)/gi, currentName) 
-        : '';
-      const newHistoryEntry = currentEvent.type === 'dialogue' ? `${rawSpeakerName}: ${parsedText}` : null;
-      const nextHistory = newHistoryEntry ? [...prev.history, newHistoryEntry] : prev.history;
-
-      // 1. Salto condicional de rama
-      if (currentEvent.type === 'dialogue' && currentEvent.jumpToBranchId) {
-        const shouldJump = checkCondition(currentEvent.jumpCondition, prev.runtimeVariables);
-        if (shouldJump) {
-          return {
-            ...prev,
-            history: nextHistory,
-            currentBranchId: currentEvent.jumpToBranchId,
-            currentEventIndex: currentEvent.jumpToEventIndex ?? 0,
-            activeEffect: currentEvent.effect || 'none'
-          };
-        }
-      }
-
-      // 2. Siguiente viñeta dentro de la escena
-      if (prev.currentEventIndex < timeline.length - 1) {
-        return {
-          ...prev,
-          currentEventIndex: prev.currentEventIndex + 1,
-          history: nextHistory,
-          activeEffect: currentEvent.type === 'dialogue' ? (currentEvent.effect || 'none') : prev.activeEffect
-        };
-      }
-
-      // 3. Siguiente escena si se acabaron las viñetas
-      const currentIdx = scenes.findIndex(item => item.id === currentScene.id);
-      if (currentIdx !== -1 && currentIdx < scenes.length - 1) {
-    const nextScene = scenes[currentIdx + 1];
-    return {
-        ...prev,
-        currentSceneId: nextScene.id,
-        currentBranchId: 'main',
-        currentEventIndex: 0,
-        history: nextHistory,
-        activeEffect: 'none'
-    };
+export interface BranchJumpCondition {
+  variableName: string;
+  operator: 'equals' | 'greater' | 'less' | 'not_equals';
+  value: boolean | number | string;
 }
 
-      // Fin de la historia
-      return {
-        ...prev,
-        history: nextHistory
-      };
-    });
-  };
+export interface VariableCondition {
+  variableName: string;
+  operator: 'equals' | 'greater' | 'less' | 'not_equals';
+  value: boolean | number | string;
+}
 
-  const applyVariableChanges = (changes: VariableChange[], runtimeVars: Record<string, any>) => {
-    const updated = { ...runtimeVars };
-    changes.forEach(ch => {
-      const currentVal = updated[ch.variableName];
-      let operand = ch.value;
+export interface VariableChange {
+  variableName: string;
+  operation: VariableOperation;
+  valueType: 'literal' | 'variable';
+  value: boolean | number | string;
+}
 
-      if (ch.valueType === 'variable') {
-        operand = updated[String(ch.value)];
-      }
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  email?: string;
+  avatarUrl?: string;
+  role?: 'admin' | 'moderator' | 'user' | string;
+  createdAt?: number;
+}
 
-      switch (ch.operation) {
-        case 'set':
-          updated[ch.variableName] = operand;
-          break;
-        case 'toggle':
-          updated[ch.variableName] = !currentVal;
-          break;
-        case 'add':
-          updated[ch.variableName] = (Number(currentVal) || 0) + Number(operand);
-          break;
-        case 'subtract':
-          updated[ch.variableName] = (Number(currentVal) || 0) - Number(operand);
-          break;
-        case 'multiply':
-          updated[ch.variableName] = (Number(currentVal) || 0) * Number(operand);
-          break;
-        case 'divide':
-          updated[ch.variableName] = Number(operand) !== 0 ? (Number(currentVal) || 0) / Number(operand) : currentVal;
-          break;
-      }
-    });
-    return updated;
-  };
+export interface StageCharacterInstance {
+  characterId: string;
+  expression: string;
+  slot: MagneticSlot;
+  verticalSlot: VerticalSlot;
+  scale: CharacterScale;
+  brightness: number;
+  animation?: CharacterAnimation;
+}
 
-  const selectChoiceOption = (optionId: string) => {
-    const scenes = getProjectScenes(project);
-    const currentScene = scenes.find(sc => sc.id === gameState.currentSceneId) || scenes[0];
-    if (!currentScene) return;
+export interface ChoiceOption {
+  id: string;
+  text: string;
+  jumpToBranchId?: string;
+  jumpToEventIndex?: number;
+  jumpToSceneId?: string;
+  variableChanges?: VariableChange[];
+  affinityChanges?: { characterId: string; amount: number }[];
+}
 
-    const timeline: TimelineEvent[] = gameState.currentBranchId === 'main'
-      ? (currentScene.timeline || [])
-      : (currentScene.branches?.[gameState.currentBranchId]?.timeline || []);
+export interface DialogueEvent {
+  type: 'dialogue';
+  id: string;
+  speakerId: string;
+  text: string;
+  backgroundUrl?: string;
+  bgmUrl?: string;
+  sfxUrl?: string;
+  charactersOnStage: StageCharacterInstance[];
+  effect?: ScreenEffect;
+  jumpToBranchId?: string;
+  jumpToEventIndex?: number;
+  jumpCondition?: BranchJumpCondition;
+  condition?: VariableCondition;
+}
 
-    const currentEvent = timeline[gameState.currentEventIndex];
-    if (currentEvent?.type !== 'choice') return;
+export interface ChoiceEvent {
+  type: 'choice';
+  id: string;
+  prompt: string;
+  backgroundUrl?: string;
+  bgmUrl?: string;
+  sfxUrl?: string;
+  options: ChoiceOption[];
+  condition?: VariableCondition;
+}
 
-    const opt = currentEvent.options.find((o: any) => o.id === optionId);
-    if (!opt) return;
+export type TimelineEvent = DialogueEvent | ChoiceEvent;
 
-    if (opt.affinityChanges) {
-      setGameState(prev => {
-        const copy = { ...prev.runtimeCharacters };
-        opt.affinityChanges?.forEach((ch: any) => {
-          if (copy[ch.characterId]) {
-            copy[ch.characterId].affinity = (copy[ch.characterId].affinity || 0) + ch.amount;
-          }
-        });
-        return { ...prev, runtimeCharacters: copy };
-      });
-    }
+export interface Branch {
+  id: string;
+  name: string;
+  timeline: TimelineEvent[];
+}
 
-    if (opt.variableChanges && opt.variableChanges.length > 0) {
-      setGameState(prev => ({
-        ...prev,
-        runtimeVariables: applyVariableChanges(opt.variableChanges!, prev.runtimeVariables)
-      }));
-    }
+export interface Scene {
+  id: string;
+  title: string;
+  backgroundUrl: string;
+  bgmUrl?: string;
+  timeline: TimelineEvent[];
+  branches?: Record<string, Branch>;
+}
 
-    if (opt.jumpToSceneId) {
-      jumpToScene(opt.jumpToSceneId);
-    } else if (opt.jumpToBranchId) {
-      setGameState(prev => ({
-        ...prev,
-        currentBranchId: opt.jumpToBranchId!,
-        currentEventIndex: opt.jumpToEventIndex ?? 0
-      }));
-    } else {
-      setGameState(prev => ({ ...prev, currentEventIndex: prev.currentEventIndex + 1 }));
-    }
-  };
+export interface Chapter {
+  id: string;
+  title: string;
+  scenes: Scene[];
+}
 
-  return (
-    <NovelContext.Provider
-      value={{
-        project,
-        setProject,
-        saveProjectToLocal,
-        exportProjectJson,
-        importProjectJson,
-        resetProjectToDefault,
-        currentSceneId,
-        setCurrentSceneId,
-        currentBranchId,
-        setCurrentBranchId,
-        activeLibraryNovelId,
-        setActiveLibraryNovelId,
-        addOrUpdateCharacter,
-        deleteCharacter,
-        createBranch,
-        deleteBranch,
-        addTimelineEvent,
-        updateTimelineEvent,
-        deleteTimelineEvent,
-        reorderTimelineEvents,
-        duplicateTimelineEventBase,
-        addOrUpdateVariable,
-        deleteVariable,
-        deleteBackgroundFromGallery,
-        gameState,
-        setPlayerName,
-        startPlaytest,
-        advancePlayerEvent,
-        selectChoiceOption,
-        jumpToScene,
-        jumpToBranch,
-        parseTextTokens,
-        library,
-        saveCurrentProjectToLibrary,
-        loadProjectFromLibrary,
-        deleteNovelFromLibrary,
-        saveGameToSlot,
-        loadGameFromSlot,
-        deleteSaveSlot,
-        importCommunityNovelToLibrary
-      }}
-    >
-      {children}
-    </NovelContext.Provider>
-  );
-};
+export interface CharacterRelation {
+  targetCharacterId: string;
+  relationType: string;
+  isPublic?: boolean;
+}
 
-export const useNovel = () => {
-  const context = useContext(NovelContext);
-  if (!context) throw new Error('useNovel debe usarse dentro de NovelProvider');
-  return context;
-};
+export interface Character {
+  id: string;
+  name: string;
+  color: string;
+  bio: string;
+  avatarUrl: string;
+  isPublic: boolean;
+  hasAffinity: boolean;
+  affinity: number;
+  minAffinity: number;
+  maxAffinity: number;
+  showAffinityBar: boolean;
+  customStats: Record<string, number>;
+  relations: CharacterRelation[];
+  expressions: Record<string, string>;
+}
+
+export interface CustomVariable {
+  name: string;
+  type: 'boolean' | 'number' | 'string';
+  defaultValue: boolean | number | string;
+  description?: string;
+  isVisibleInHUD?: boolean;
+}
+
+export interface ProjectAudioItem {
+  id: string;
+  name: string;
+  url: string;
+  type: 'bgm' | 'sfx';
+}
+
+export interface NovelProject {
+  id: string;
+  title: string;
+  description: string;
+  isPublic: boolean;
+  allowCommunityEdit?: boolean;
+  createdAt: number;
+  updatedAt: number;
+  askPlayerName?: boolean;
+  defaultPlayerName?: string;
+  backgroundGallery: { id: string; name: string; url: string }[];
+  audioGallery?: ProjectAudioItem[];
+  variables: Record<string, CustomVariable>;
+  characters: Record<string, Character>;
+  chapters: Chapter[];
+}
+
+export interface PlayerGameState {
+  currentChapterId: string;
+  currentSceneId: string;
+  currentBranchId: string;
+  currentEventIndex: number;
+  playerName: string;
+  runtimeVariables: Record<string, boolean | number | string>;
+  runtimeCharacters: Record<string, Character>;
+  history: string[];
+  activeEffect?: ScreenEffect;
+  currentBgmUrl?: string;
+}
+
+export interface SaveSlot {
+  id: string;
+  slotNumber: number;
+  timestamp: number;
+  previewBgUrl?: string;
+  previewText?: string;
+  sceneTitle?: string;
+  chapterTitle?: string;
+  state: PlayerGameState;
+}
+
+export interface LibraryNovelEntry {
+  id: string;
+  title: string;
+  description?: string;
+  coverUrl?: string;
+  authorName?: string;
+  authorId?: string;
+  lastPlayedAt?: number;
+  isOwner: boolean;
+  allowEdit: boolean;
+  project: NovelProject;
+  saveSlots: Record<string, SaveSlot>;
+}
+
+export interface CommunityAsset {
+  id: string;
+  title: string;
+  category: 'background' | 'character' | 'bgm' | 'sfx';
+  tags?: string[];
+  url: string;
+  authorName: string;
+  authorId: string;
+  createdAt: number;
+  isNsfw?: boolean;
+}
+
+export interface CommunityNovel {
+  id: string;
+  title: string;
+  description: string;
+  coverUrl?: string;
+  tags?: string[];
+  isNsfw?: boolean;
+  authorName: string;
+  authorId: string;
+  createdAt: number;
+  projectData: NovelProject;
+  allowCommunityEdit?: boolean;
+}
+
+export interface PlaySessionInfo {
+  isEditorPlaytest: boolean;
+  canEdit: boolean;
+  novelId?: string;
+  novelTitle?: string;
+}
