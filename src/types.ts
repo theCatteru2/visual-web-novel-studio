@@ -166,16 +166,20 @@ export interface MenuElement {
   id: string;
   type: MenuElementType;
   text: string;
-
+  slotX?: MagneticSlot;
+  verticalSlot?: VerticalSlot;
   x?: number;
   y?: number;
-
-  slotX: MagneticSlot;
-  verticalSlot: VerticalSlot;
-
-  styleVariant: MenuElementStyle;
-  action?: MenuElementAction;
-  condition?: VariableCondition;
+  styleVariant?: MenuElementStyle;
+  customTextColor?: string;
+  customBgColor?: string;
+  customBgImage?: string;
+  variableChanges?: VariableChange[];
+  action?: {
+    type: 'start_game' | 'jump_to_scene' | 'jump_to_menu' | 'open_save_load' | 'restart';
+    targetSceneId?: string;
+    targetMenuId?: string;
+  };
 }
 
 export interface MenuScreen {
