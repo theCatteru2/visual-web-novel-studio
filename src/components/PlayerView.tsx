@@ -117,7 +117,7 @@ export default function PlayerView() {
     ? activeMenuScreen.backgroundUrl
     : currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
-  // Typewriter
+  // Efecto Typewriter
   useEffect(() => {
     if (typewriterTimerRef.current) {
       clearInterval(typewriterTimerRef.current);
@@ -159,7 +159,7 @@ export default function PlayerView() {
     gameState.currentMenuId
   ]);
 
-  // Audio
+  // Efecto de Audio
   useEffect(() => {
     const activeBgm = activeMenuScreen ? activeMenuScreen.bgmUrl : currentEvent?.bgmUrl;
 
@@ -415,16 +415,17 @@ export default function PlayerView() {
       }}
     >
       <style>{`
+        /* Animaciones en eje vertical/relativo puro para evitar desfase horizontal */
         @keyframes jumpAnim {
-          0% { transform: translate(-50%, 0); }
-          50% { transform: translate(-50%, -25px); }
-          100% { transform: translate(-50%, 0); }
+          0% { transform: translateY(0); }
+          50% { transform: translateY(-25px); }
+          100% { transform: translateY(0); }
         }
 
         @keyframes shakeAnim {
-          0%, 100% { transform: translate(-50%, 0); }
-          25% { transform: translate(-55%, 0); }
-          75% { transform: translate(-45%, 0); }
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-8px); }
+          75% { transform: translateX(8px); }
         }
 
         @keyframes fadeInAnim {
@@ -433,8 +434,8 @@ export default function PlayerView() {
         }
 
         @keyframes slideInAnim {
-          0% { transform: translate(-70%, 0); opacity: 0; }
-          100% { transform: translate(-50%, 0); opacity: 1; }
+          0% { transform: translateX(-30px); opacity: 0; }
+          100% { transform: translateX(0); opacity: 1; }
         }
 
         .vn-dialog-box {
@@ -679,6 +680,7 @@ export default function PlayerView() {
                     }}
                   >
                     <img
+                      key={`img_${inst.characterId}_${gameState.currentEventIndex}_${inst.animation || 'none'}`}
                       src={resolvedSprite}
                       alt={charDef.name}
                       draggable={false}
@@ -827,7 +829,7 @@ export default function PlayerView() {
                 }}
               >
                 <h2 style={{ fontSize: 18, color: '#38bdf8', margin: 0 }}>
-                  Fin de la Escena / Historia
+                  Fin de la Historia
                 </h2>
                 <p style={{ color: '#aaa', fontSize: 12, margin: 0 }}>
                   Has llegado al final de las viñetas disponibles.
