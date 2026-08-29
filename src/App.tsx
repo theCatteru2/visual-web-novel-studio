@@ -12,6 +12,7 @@ import CommunityFeed from './components/CommunityFeed';
 import HomeScreen from './components/HomeScreen';
 import UserProfileView from './components/UserProfileView';
 import MyLibraryView from './components/MyLibraryView';
+import MenuScreensModal from './components/MenuScreensModal';
 import { NovelProject } from './types';
 
 function MainStudio() {
@@ -20,6 +21,7 @@ function MainStudio() {
   const [mode, setMode] = useState<'home' | 'editor' | 'player' | 'community' | 'profile' | 'library'>('home');
   const [isCharTreeOpen, setIsCharTreeOpen] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
+  const [isMenuScreensOpen, setIsMenuScreensOpen] = useState(false);
 
   // Soporte para enlaces privados: ?privatePlay=NOVEL_ID
   useEffect(() => {
@@ -58,6 +60,7 @@ function MainStudio() {
         setMode={setMode} 
         onOpenCharacterTree={() => setIsCharTreeOpen(true)}
         onOpenPublishModal={() => setIsPublishOpen(true)}
+        onOpenMenuScreens={() => setIsMenuScreensOpen(true)}
       />
 
       {/* Vistas Principales */}
@@ -110,6 +113,11 @@ function MainStudio() {
       <PublishModal 
         isOpen={isPublishOpen} 
         onClose={() => setIsPublishOpen(false)} 
+      />
+
+      <MenuScreensModal
+        isOpen={isMenuScreensOpen}
+        onClose={() => setIsMenuScreensOpen(false)}
       />
     </div>
   );
