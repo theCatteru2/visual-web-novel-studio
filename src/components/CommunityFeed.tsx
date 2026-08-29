@@ -150,11 +150,19 @@ export default function CommunityFeed({ onPlayNovel, onOpenProfile }: CommunityF
     return true;
   });
 
-  const handlePlayDirectly = (novel: CommunityNovel) => {
-    setProject(novel.projectData);
-    startPlaytest();
-    onPlayNovel();
-  };
+  const { launchPlayer, importCommunityNovelToLibrary } = useNovel();
+  const { user } = useAuth();
+
+const handlePlayDirectly = (novel: CommunityNovel) => {
+  const canEdit = Boolean(novel.allowCommunityEdit || (user && user.uid === novel.authorId));
+  launchPlayer(novel.projectData, {
+    isEditorPlaytest: false,
+    canEdit,
+    novelId: novel.id,
+    fromStart: true
+  });
+  onPlayNovel();
+};
 
   const handleImportToLibrary = (novel: CommunityNovel) => {
     importCommunityNovelToLibrary(
