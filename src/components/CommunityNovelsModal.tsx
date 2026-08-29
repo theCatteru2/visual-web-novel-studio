@@ -13,7 +13,7 @@ interface CommunityNovelsModalProps {
 const NOVEL_TAGS = ['Romance', 'Fantasía', 'Misterio', 'Drama', 'Comedia', 'Terror', 'Sci-Fi', 'Aventura', 'Escolar', 'Isekai'];
 
 export default function CommunityNovelsModal({ isOpen, onClose }: CommunityNovelsModalProps) {
-  const { user, profile, loginWithGoogle } = useAuth();
+  const { user, profile } = useAuth();
   const { project, launchPlayer, importCommunityNovelToLibrary } = useNovel();
 
   const [novels, setNovels] = useState<CommunityNovel[]>([]);
