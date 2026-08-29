@@ -31,11 +31,25 @@ const SCALE_PERCENTAGES: Record<string, string> = {
 };
 
 export default function PlayerView() {
-  const { project, gameState, advancePlayerEvent, selectChoiceOption, parseTextTokens, setPlayerName, startPlaytest } = useNovel();
+  const { 
+    activePlayProject, 
+    gameState, 
+    advancePlayerEvent, 
+    selectChoiceOption, 
+    parseTextTokens, 
+    setPlayerName, 
+    startPlaytest 
+  } = useNovel();
+
   const [showHistory, setShowHistory] = useState(false);
   const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
   const [isLargeScreenMode, setIsLargeScreenMode] = useState(false);
+
+  // Estados del efecto máquina de escribir (Typewriter)
+  const [displayedText, setDisplayedText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const typewriterTimerRef = useRef<number | null>(null);
 
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const sfxAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -54,13 +68,13 @@ export default function PlayerView() {
   }, []);
 
   const [askingName, setAskingName] = useState(false);
-  const [tempPlayerName, setTempPlayerName] = useState(gameState.playerName || project.defaultPlayerName || '');
+  const [tempPlayerName, setTempPlayerName] = useState(gameState.playerName || activePlayProject.defaultPlayerName || '');
 
   useEffect(() => {
-    if (project.askPlayerName && !gameState.playerName && gameState.currentEventIndex === 0 && gameState.history.length === 0) {
+    if (activePlayProject.askPlayerName && !gameState.playerName && gameState.currentEventIndex === 0 && gameState.history.length === 0) {
       setAskingName(true);
     }
-  }, []);
+  }, [activePlayProject.askPlayerName]);
 
   useEffect(() => {
     if (!gameState.currentSceneId) {
@@ -68,7 +82,7 @@ export default function PlayerView() {
     }
   }, [gameState.currentSceneId]);
 
-  const scenesList = (project as any).scenes || project.chapters?.[0]?.scenes || [];
+  const scenesList = (activePlayProject as any).scenes || activePlayProject.chapters?.[0]?.scenes || [];
   const currentScene = scenesList.find((s: any) => s.id === gameState.currentSceneId) || scenesList[0];
 
   const timeline = gameState.currentBranchId === 'main'
@@ -78,6 +92,44 @@ export default function PlayerView() {
   const currentEvent = timeline?.[gameState.currentEventIndex] as any;
   const effectiveBgUrl = currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
+  // Manejo del efecto Typewriter
+  useEffect(() => {
+    if (typewriterTimerRef.current) {
+      clearInterval(typewriterTimerRef.current);
+      typewriterTimerRef.current = null;
+    }
+
+    if (currentEvent?.type === 'dialogue') {
+      const fullText = parseTextTokens(currentEvent.text || '');
+      setDisplayedText('');
+      setIsTyping(true);
+
+      let charIndex = 0;
+      typewriterTimerRef.current = window.setInterval(() => {
+        charIndex += 1;
+        setDisplayedText(fullText.slice(0, charIndex));
+        if (charIndex >= fullText.length) {
+          if (typewriterTimerRef.current) {
+            clearInterval(typewriterTimerRef.current);
+            typewriterTimerRef.current = null;
+          }
+          setIsTyping(false);
+        }
+      }, 22);
+    } else {
+      setDisplayedText('');
+      setIsTyping(false);
+    }
+
+    return () => {
+      if (typewriterTimerRef.current) {
+        clearInterval(typewriterTimerRef.current);
+        typewriterTimerRef.current = null;
+      }
+    };
+  }, [gameState.currentEventIndex, gameState.currentSceneId, gameState.currentBranchId]);
+
+  // Manejo de Audio
   useEffect(() => {
     const eventBgm = currentEvent?.bgmUrl;
     if (eventBgm === 'stop') {
@@ -120,16 +172,27 @@ export default function PlayerView() {
   }, []);
 
   const speakerChar = currentEvent?.type === 'dialogue' && currentEvent.speakerId !== 'narrator'
-    ? gameState.runtimeCharacters[currentEvent.speakerId] || project.characters[currentEvent.speakerId]
+    ? gameState.runtimeCharacters[currentEvent.speakerId] || activePlayProject.characters[currentEvent.speakerId]
     : null;
 
   const visibleVariables = Object.entries(gameState.runtimeVariables || {}).filter(([key]) => {
-    return project.variables?.[key]?.isVisibleInHUD === true;
+    return activePlayProject.variables?.[key]?.isVisibleInHUD === true;
   });
 
   const handleScreenClick = () => {
     if (showHistory || showSaveLoad || askingName) return;
     if (currentEvent?.type === 'choice') return;
+
+    if (isTyping && currentEvent?.type === 'dialogue') {
+      if (typewriterTimerRef.current) {
+        clearInterval(typewriterTimerRef.current);
+        typewriterTimerRef.current = null;
+      }
+      setDisplayedText(parseTextTokens(currentEvent.text || ''));
+      setIsTyping(false);
+      return;
+    }
+
     advancePlayerEvent();
   };
 
@@ -205,7 +268,6 @@ export default function PlayerView() {
           100% { transform: translateX(0); opacity: 1; }
         }
 
-        /* Estilo estándar en PC */
         .vn-dialog-box {
           padding: 14px 24px;
           bottom: 14px;
@@ -220,7 +282,6 @@ export default function PlayerView() {
           line-height: 1.45;
         }
 
-        /* Móviles en vertical */
         @media (max-width: 640px) and (orientation: portrait) {
           .vn-dialog-box {
             padding: 8px 12px !important;
@@ -237,7 +298,6 @@ export default function PlayerView() {
           }
         }
 
-        /* Móviles en horizontal */
         @media (max-height: 520px) and (orientation: landscape) {
           .vn-dialog-box {
             padding: 6px 14px !important;
@@ -377,7 +437,7 @@ export default function PlayerView() {
 
         {/* Personajes en Escena */}
         {currentEvent?.type === 'dialogue' && currentEvent.charactersOnStage?.map((inst: any) => {
-          const charDef = project.characters[inst.characterId];
+          const charDef = activePlayProject.characters[inst.characterId];
           if (!charDef) return null;
 
           const slotX = SLOT_POSITIONS_X[String(inst.slot || 'center')] || '50%';
@@ -401,7 +461,7 @@ export default function PlayerView() {
                 pointerEvents: 'none',
                 zIndex: 10,
                 height: scale,
-                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`,
+                filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
               }}
             >
               <img
@@ -476,7 +536,7 @@ export default function PlayerView() {
           </div>
         )}
 
-        {/* Caja de Diálogo */}
+        {/* Caja de Diálogo con Typewriter */}
         {currentEvent?.type === 'dialogue' && (
           <div 
             className="vn-dialog-box"
@@ -512,10 +572,12 @@ export default function PlayerView() {
               className="vn-dialog-text"
               style={{ 
                 color: '#f8fafc',
-                textShadow: '0 1px 3px rgba(0,0,0,0.8)'
+                textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+                minHeight: '1.45em'
               }}
             >
-              {parseTextTokens(currentEvent.text)}
+              {displayedText}
+              {isTyping && <span style={{ opacity: 0.7, marginLeft: 2 }}>▍</span>}
             </div>
           </div>
         )}
