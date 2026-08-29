@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNovel } from '../context/NovelContext';
 import { 
   MenuScreen, 
@@ -381,7 +381,7 @@ export default function MenuScreensModal({ isOpen, onClose }: MenuScreensModalPr
                   }}>
                     {currentScreen.elements?.map(el => {
                       const slotXPercent = el.slotX === 'far-left' ? '12%' : el.slotX === 'left' ? '25%' : el.slotX === 'center-left' ? '38%' : el.slotX === 'center' ? '50%' : el.slotX === 'center-right' ? '62%' : el.slotX === 'right' ? '75%' : '88%';
-                      const slotYPercent = el.verticalSlot === 'sky' ? '48%' : el.verticalSlot === 'floating' ? '36%' : el.verticalSlot === 'elevated' ? '24%' : el.verticalSlot === 'ground' ? '12%' : el.verticalSlot === 'floor' ? '0%' : el.verticalSlot === 'sink' ? '-12%' : '-25%';
+                      const slotYPercent = el.verticalSlot === 'sky' ? '48%' : el.verticalSlot === 'floating' ? '36%' : el.verticalSlot === 'elevated' ? '24%' : el.verticalSlot === 'ground' ? '12%' : el.verticalSlot === 'floor' ? '8%' : el.verticalSlot === 'sink' ? '4%' : '2%';
 
                       const isSelected = activeEditingElemId === el.id;
 
