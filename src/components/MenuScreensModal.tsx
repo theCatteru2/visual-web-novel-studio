@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNovel } from '../context/NovelContext';
 import {
   MenuScreen,
   MenuElement,
-  MagneticSlot,
-  VerticalSlot,
   MenuElementType,
-  MenuElementStyle
+  MenuElementStyle,
+  MagneticSlot,
+  VerticalSlot
 } from '../types';
 
 interface MenuScreensModalProps {
@@ -14,25 +14,38 @@ interface MenuScreensModalProps {
   onClose: () => void;
 }
 
-const SLOTS_X: { slot: MagneticSlot; label: string }[] = [
-  { slot: 'far-left', label: 'Ext-Izq' },
-  { slot: 'left', label: 'Izq' },
-  { slot: 'center-left', label: 'C-Izq' },
-  { slot: 'center', label: 'Centro' },
-  { slot: 'center-right', label: 'C-Der' },
-  { slot: 'right', label: 'Der' },
-  { slot: 'far-right', label: 'Ext-Der' }
-];
+const DEFAULT_X: Record<MagneticSlot, number> = {
+  'far-left': 12,
+  'left': 25,
+  'center-left': 38,
+  'center': 50,
+  'center-right': 62,
+  'right': 75,
+  'far-right': 88
+};
 
-const SLOTS_Y: { slot: VerticalSlot; label: string }[] = [
-  { slot: 'sky', label: 'Cielo (Arriba)' },
-  { slot: 'floating', label: 'Flotando' },
-  { slot: 'elevated', label: 'Elevado' },
-  { slot: 'ground', label: 'Centro/Normal' },
-  { slot: 'floor', label: 'Suelo' },
-  { slot: 'sink', label: 'Hundido' },
-  { slot: 'deep_sink', label: 'Abajo' }
-];
+const DEFAULT_Y: Record<VerticalSlot, number> = {
+  'sky': 12,
+  'floating': 28,
+  'elevated': 40,
+  'ground': 58,
+  'floor': 72,
+  'sink': 86,
+  'deep_sink': 96
+};
+
+const getElementX = (el: MenuElement) => {
+  if (typeof el.x === 'number') return el.x;
+  return DEFAULT_X[el.slotX] ?? 50;
+};
+
+const getElementY = (el: MenuElement) => {
+  if (typeof el.y === 'number') return el.y;
+  return DEFAULT_Y[el.verticalSlot] ?? 50;
+};
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
 
 export default function MenuScreensModal({
   isOpen,
@@ -50,14 +63,29 @@ export default function MenuScreensModal({
   const customScreens = project.customScreens || {};
   const screensList = Object.values(customScreens);
 
-  const [selectedScreenId, setSelectedScreenId] = useState<string>(() => {
-    return screensList[0]?.id || '';
-  });
+  const [selectedScreenId, setSelectedScreenId] = useState<string>(
+    screensList[0]?.id || ''
+  );
 
   const [activeEditingElemId, setActiveEditingElemId] =
     useState<string | null>(null);
 
   const [newScreenTitle, setNewScreenTitle] = useState('');
+
+  const [draggingElementId, setDraggingElementId] =
+    useState<string | null>(null);
+
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * Cuando se abre el modal y todavía no existe una pantalla seleccionada,
+   * seleccionamos la primera disponible.
+   */
+  useEffect(() => {
+    if (!selectedScreenId && screensList.length > 0) {
+      setSelectedScreenId(screensList[0].id);
+    }
+  }, [selectedScreenId, screensList]);
 
   if (!isOpen) return null;
 
@@ -69,59 +97,28 @@ export default function MenuScreensModal({
     project.chapters?.[0]?.scenes ||
     [];
 
-  /*
-   * Convierte los antiguos slots a posiciones libres.
-   *
-   * Los elementos antiguos no tienen x/y.
-   * Por eso se usa esta conversión solamente como fallback.
-   */
-  const getElementPosition = (el: MenuElement) => {
-    if (
-      typeof el.x === 'number' &&
-      typeof el.y === 'number'
-    ) {
-      return {
-        x: el.x,
-        y: el.y
-      };
-    }
+  const updateElement = (
+    element: MenuElement,
+    changes: Partial<MenuElement>
+  ) => {
+    if (!currentScreen) return;
 
-    const xMap: Record<string, number> = {
-      'far-left': 12,
-      'left': 25,
-      'center-left': 38,
-      'center': 50,
-      'center-right': 62,
-      'right': 75,
-      'far-right': 88
-    };
+    addOrUpdateMenuElement(currentScreen.id, {
+      ...element,
+      ...changes
+    });
+  };
 
-    /*
-     * Los valores antiguos estaban expresados desde bottom.
-     * Los convertimos a coordenadas desde top.
-     */
-    const oldBottomMap: Record<string, number> = {
-      'sky': 48,
-      'floating': 36,
-      'elevated': 24,
-      'ground': 12,
-      'floor': 8,
-      'sink': 4,
-      'deep_sink': 2
-    };
-
-    const oldBottom =
-      oldBottomMap[el.verticalSlot] ?? 8;
-
+  const normalizeElementPosition = (
+    element: MenuElement
+  ): MenuElement => {
     return {
-      x: xMap[el.slotX] ?? 50,
-      y: 100 - oldBottom
+      ...element,
+      x: getElementX(element),
+      y: getElementY(element)
     };
   };
 
-  /*
-   * Crea una nueva pantalla.
-   */
   const handleCreateScreen = (
     type: 'start_menu' | 'end_screen' | 'custom_menu'
   ) => {
@@ -135,88 +132,78 @@ export default function MenuScreensModal({
             : 'Nuevo Menú'
       );
 
-    const newId = `screen_${Date.now()}`;
-
+    const timestamp = Date.now();
+    const newId = `screen_${timestamp}`;
     const defaultBg =
       project.backgroundGallery?.[0]?.url || '';
+
+    const titleElement: MenuElement = {
+      id: `el_title_${timestamp}`,
+      type: 'text',
+      text: project.title || 'Título de la Novela',
+
+      x: 50,
+      y: 20,
+
+      slotX: 'center',
+      verticalSlot: 'sky',
+      styleVariant: 'title'
+    };
+
+    const playButton: MenuElement = {
+      id: `el_btn_play_${timestamp + 1}`,
+      type: 'button',
+      text: 'Comenzar Historia',
+
+      x: 50,
+      y: 58,
+
+      slotX: 'center',
+      verticalSlot: 'ground',
+      styleVariant: 'primary',
+
+      action: {
+        type: 'start_game'
+      }
+    };
 
     const newScreen: MenuScreen = {
       id: newId,
       title,
       type,
       backgroundUrl: defaultBg,
-
       elements: [
-        {
-          id: `el_title_${Date.now()}`,
-          type: 'text',
-          text: project.title || 'Título de la Novela',
-
-          // Compatibilidad con el sistema anterior
-          slotX: 'center',
-          verticalSlot: 'sky',
-
-          // Nueva posición libre
-          x: 50,
-          y: 20,
-
-          styleVariant: 'title'
-        },
-
-        {
-          id: `el_btn_play_${Date.now() + 1}`,
-          type: 'button',
-          text: 'Comenzar Historia',
-
-          // Compatibilidad
-          slotX: 'center',
-          verticalSlot: 'ground',
-
-          // Nueva posición libre
-          x: 50,
-          y: 55,
-
-          styleVariant: 'primary',
-
-          action: {
-            type: 'start_game'
-          }
-        }
+        titleElement,
+        playButton
       ]
     };
 
     addOrUpdateMenuScreen(newScreen);
 
     setSelectedScreenId(newId);
-    setNewScreenTitle('');
     setActiveEditingElemId(null);
+    setNewScreenTitle('');
   };
 
-  /*
-   * Añade un elemento nuevo.
-   */
-  const handleAddElement = (
-    type: MenuElementType
-  ) => {
+  const handleAddElement = (type: MenuElementType) => {
     if (!currentScreen) return;
 
     const newElem: MenuElement = {
       id: `elem_${Date.now()}`,
-
       type,
 
       text:
         type === 'button'
           ? 'Nuevo Botón'
-          : 'Texto Personalizado',
+          : type === 'card'
+            ? 'Nueva Tarjeta'
+            : 'Texto Personalizado',
 
-      // Compatibilidad con menús anteriores
-      slotX: 'center',
-      verticalSlot: 'floor',
-
-      // Posición libre inicial
       x: 50,
-      y: 70,
+      y: 50,
+
+      slotX: 'center',
+      verticalSlot: 'ground',
 
       styleVariant:
         type === 'button'
@@ -225,9 +212,7 @@ export default function MenuScreensModal({
 
       action:
         type === 'button'
-          ? {
-              type: 'start_game'
-            }
+          ? { type: 'start_game' }
           : undefined
     };
 
@@ -240,210 +225,181 @@ export default function MenuScreensModal({
   };
 
   /*
-   * Movimiento libre del elemento.
+   * Movimiento libre.
    *
-   * Funciona tanto con:
+   * Pointer Events permite que esto funcione tanto con:
    * - mouse
    * - touch
    * - stylus
    */
-  const handleElementPointerDown = (
-    e: React.PointerEvent<HTMLDivElement>,
-    el: MenuElement
+  const handlePointerDown = (
+    e: React.PointerEvent,
+    element: MenuElement
   ) => {
-    if (!currentScreen) return;
-
     e.stopPropagation();
 
-    const canvas =
-      e.currentTarget.parentElement;
+    if (!canvasRef.current || !currentScreen) return;
 
-    if (!canvas) return;
+    setActiveEditingElemId(element.id);
+    setDraggingElementId(element.id);
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Algunos navegadores pueden no soportarlo.
+    }
+  };
+
+  const handlePointerMove = (
+    e: React.PointerEvent
+  ) => {
+    if (
+      !draggingElementId ||
+      !canvasRef.current ||
+      !currentScreen
+    ) {
+      return;
+    }
 
     const rect =
-      canvas.getBoundingClientRect();
+      canvasRef.current.getBoundingClientRect();
 
-    setActiveEditingElemId(el.id);
+    if (rect.width <= 0 || rect.height <= 0) return;
 
-    /*
-     * Calculamos el punto exacto donde agarramos
-     * el elemento para que no "salte" al centro
-     * cuando comienza el arrastre.
-     */
-    const currentPosition =
-      getElementPosition(el);
+    const x =
+      ((e.clientX - rect.left) / rect.width) * 100;
 
-    const pointerStartX = e.clientX;
-    const pointerStartY = e.clientY;
+    const y =
+      ((e.clientY - rect.top) / rect.height) * 100;
 
-    const startX = currentPosition.x;
-    const startY = currentPosition.y;
+    const nextX = clamp(x, 0, 100);
+    const nextY = clamp(y, 0, 100);
 
-    let hasMoved = false;
+    const element =
+      currentScreen.elements?.find(
+        el => el.id === draggingElementId
+      );
 
-    const handlePointerMove = (
-      moveEvent: PointerEvent
-    ) => {
-      const deltaX =
-        moveEvent.clientX - pointerStartX;
+    if (!element) return;
 
-      const deltaY =
-        moveEvent.clientY - pointerStartY;
-
-      if (
-        Math.abs(deltaX) > 2 ||
-        Math.abs(deltaY) > 2
-      ) {
-        hasMoved = true;
+    updateElement(
+      normalizeElementPosition(element),
+      {
+        x: nextX,
+        y: nextY
       }
-
-      /*
-       * Convertimos píxeles del movimiento
-       * a porcentajes del lienzo.
-       */
-      const deltaPercentX =
-        (deltaX / rect.width) * 100;
-
-      const deltaPercentY =
-        (deltaY / rect.height) * 100;
-
-      const newX = Math.max(
-        0,
-        Math.min(
-          100,
-          startX + deltaPercentX
-        )
-      );
-
-      const newY = Math.max(
-        0,
-        Math.min(
-          100,
-          startY + deltaPercentY
-        )
-      );
-
-      /*
-       * Guardamos inmediatamente la posición.
-       */
-      addOrUpdateMenuElement(
-        currentScreen.id,
-        {
-          ...el,
-          x: newX,
-          y: newY
-        }
-      );
-    };
-
-    const handlePointerUp = () => {
-      window.removeEventListener(
-        'pointermove',
-        handlePointerMove
-      );
-
-      window.removeEventListener(
-        'pointerup',
-        handlePointerUp
-      );
-
-      /*
-       * No necesitamos hacer nada especial
-       * al terminar el movimiento.
-       *
-       * La posición ya quedó guardada.
-       */
-      void hasMoved;
-    };
-
-    window.addEventListener(
-      'pointermove',
-      handlePointerMove
     );
+  };
 
-    window.addEventListener(
-      'pointerup',
-      handlePointerUp
-    );
+  const handlePointerUp = () => {
+    setDraggingElementId(null);
+  };
+
+  const getElementStyle = (
+    el: MenuElement
+  ): React.CSSProperties => {
+    if (el.type === 'button') {
+      return {
+        background:
+          el.styleVariant === 'danger'
+            ? '#dc2626'
+            : el.styleVariant === 'glass'
+              ? 'rgba(15,23,42,0.78)'
+              : el.styleVariant === 'secondary'
+                ? '#1e293b'
+                : '#2563eb',
+
+        color: '#fff',
+        padding: '8px 18px',
+        borderRadius: 7,
+        fontSize: 12,
+        fontWeight: 800,
+        whiteSpace: 'nowrap',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+      };
+    }
+
+    if (el.type === 'card') {
+      return {
+        background:
+          el.styleVariant === 'glass'
+            ? 'rgba(15,23,42,0.75)'
+            : '#1e293b',
+        color: '#fff',
+        padding: '12px 18px',
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        minWidth: 100,
+        textAlign: 'center',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.5)'
+      };
+    }
+
+    return {
+      color:
+        el.styleVariant === 'title'
+          ? '#38bdf8'
+          : '#e2e8f0',
+
+      fontSize:
+        el.styleVariant === 'title'
+          ? 18
+          : 13,
+
+      fontWeight:
+        el.styleVariant === 'title'
+          ? 900
+          : 600,
+
+      textShadow:
+        '0 2px 8px rgba(0,0,0,0.8)',
+
+      whiteSpace: 'nowrap'
+    };
   };
 
   return (
     <div
-      className="menu-modal-overlay"
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(4, 4, 8, 0.88)',
+        background: 'rgba(4,4,8,0.92)',
         backdropFilter: 'blur(8px)',
         zIndex: 120,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 12
+        padding: 8
       }}
     >
-
-      {/* =====================================================
-          ESTILOS RESPONSIVOS
-          ===================================================== */}
-
       <style>{`
 
         * {
           box-sizing: border-box;
         }
 
-        .menu-modal {
+        .menu-editor-root {
           width: 100%;
-          max-width: 1080px;
-          height: 90vh;
+          max-width: 1180px;
+          height: min(94vh, 900px);
           background: #0d0d16;
           border: 1px solid #232338;
           border-radius: 16px;
           display: flex;
           flex-direction: column;
           overflow: hidden;
-          box-shadow: 0 25px 60px rgba(0,0,0,0.85);
           color: #fff;
+          box-shadow: 0 25px 60px rgba(0,0,0,0.85);
         }
 
-        .menu-header {
-          padding: 12px 20px;
-          border-bottom: 1px solid #1f1f2e;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          background: #12121e;
+        .menu-editor-header {
           flex-shrink: 0;
         }
 
-        .menu-header-title {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          min-width: 0;
-        }
-
-        .menu-header-text {
-          min-width: 0;
-        }
-
-        .menu-header-main {
-          font-size: 16px;
-          color: #f8fafc;
-        }
-
-        .menu-header-description {
-          font-size: 11px;
-          color: #94a3b8;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .menu-body {
-          flex: 1;
+        .menu-editor-body {
           min-height: 0;
+          flex: 1;
           display: flex;
           overflow: hidden;
         }
@@ -451,251 +407,147 @@ export default function MenuScreensModal({
         .menu-screen-list {
           width: 260px;
           flex-shrink: 0;
-          border-right: 1px solid #1f1f2e;
-          background: #0a0a12;
-          padding: 12px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          overflow-y: auto;
         }
 
-        .menu-editor {
-          flex: 1;
+        .menu-editor-main {
           min-width: 0;
-          min-height: 0;
+          flex: 1;
           display: flex;
           flex-direction: column;
           overflow: hidden;
         }
 
-        .menu-toolbar {
-          padding: 10px 16px;
-          border-bottom: 1px solid #1f1f2e;
-          background: #12121e;
-          display: flex;
-          gap: 12px;
-          align-items: center;
-          flex-wrap: wrap;
+        .menu-screen-settings {
           flex-shrink: 0;
         }
 
-        .menu-toolbar-field {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          min-width: 0;
-        }
-
-        .menu-toolbar-input {
-          min-width: 100px;
-        }
-
-        .menu-workspace {
-          flex: 1;
+        .menu-work-area {
           min-height: 0;
+          flex: 1;
           display: flex;
           overflow: hidden;
         }
 
-        .menu-canvas-area {
-          flex: 1;
+        .menu-preview-area {
           min-width: 0;
-          min-height: 0;
-          background: #06060a;
+          flex: 1;
+          overflow: auto;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 16px;
-          overflow: hidden;
-        }
-
-        .menu-canvas {
-          position: relative;
-          width: 100%;
-          max-width: 640px;
-          aspect-ratio: 16 / 9;
-          background-color: #0c0c16;
-          background-size: cover;
-          background-position: center;
-          border-radius: 10px;
-          border: 1.5px solid #2d2d42;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-
-        .menu-element {
-          position: absolute;
-          touch-action: none;
-          user-select: none;
-          -webkit-user-select: none;
         }
 
         .menu-inspector {
           width: 300px;
           flex-shrink: 0;
-          border-left: 1px solid #1f1f2e;
-          background: #0d0d16;
-          padding: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
           overflow-y: auto;
         }
 
-        .menu-mobile-section-title {
-          display: none;
+        .menu-canvas {
+          width: min(100%, 720px);
+          aspect-ratio: 16 / 9;
+          flex-shrink: 0;
+          touch-action: none;
         }
 
-        /*
-         * TABLET
-         */
-        @media (max-width: 850px) {
+        .menu-element {
+          user-select: none;
+          -webkit-user-select: none;
+          touch-action: none;
+        }
+
+        @media (max-width: 900px) {
+
+          .menu-editor-root {
+            height: 100dvh;
+            max-width: none;
+            border-radius: 0;
+          }
 
           .menu-screen-list {
             width: 210px;
           }
 
           .menu-inspector {
-            width: 260px;
-            padding: 12px;
+            width: 250px;
           }
 
-          .menu-toolbar {
-            padding: 8px 10px;
-            gap: 8px;
-          }
-
-          .menu-canvas-area {
-            padding: 10px;
-          }
         }
 
-        /*
-         * MÓVIL
-         */
         @media (max-width: 700px) {
 
-          .menu-modal-overlay {
-            padding: 0 !important;
-          }
-
-          .menu-modal {
-            width: 100%;
-            height: 100dvh;
-            max-width: none;
+          .menu-editor-root {
             border-radius: 0;
-            border: none;
           }
 
-          .menu-header {
-            padding: 9px 12px;
+          .menu-editor-header {
+            padding: 10px 12px !important;
           }
 
-          .menu-header-title {
-            gap: 7px;
-          }
-
-          .menu-header-title > span {
-            font-size: 18px !important;
-          }
-
-          .menu-header-main {
-            font-size: 13px;
-          }
-
-          .menu-header-description {
+          .menu-editor-header-subtitle {
             display: none;
           }
 
-          .menu-body {
+          .menu-editor-body {
+            display: flex;
             flex-direction: column;
-            overflow-y: auto;
-            overflow-x: hidden;
           }
 
-          /*
-           * LISTA DE PANTALLAS
-           */
           .menu-screen-list {
             width: 100%;
             height: auto;
-            max-height: 145px;
-            min-height: 0;
-            border-right: none;
+            max-height: 150px;
+            border-right: none !important;
             border-bottom: 1px solid #1f1f2e;
-            padding: 8px;
-            gap: 7px;
+            padding: 8px !important;
+            overflow-x: auto;
+            overflow-y: hidden;
             flex-shrink: 0;
           }
 
-          .menu-screen-list > div:first-child {
-            font-size: 11px !important;
-          }
-
-          /*
-           * Editor
-           */
-          .menu-editor {
-            width: 100%;
-            flex: 1;
-            min-height: 0;
-            overflow: visible;
-          }
-
-          /*
-           * Barra de propiedades
-           */
-          .menu-toolbar {
-            padding: 8px;
-            gap: 7px;
-            max-height: 125px;
-            overflow-y: auto;
-            flex-shrink: 0;
-          }
-
-          .menu-toolbar-field {
-            flex: 1 1 100%;
-          }
-
-          .menu-toolbar-field label {
-            min-width: 45px;
-          }
-
-          .menu-toolbar-input,
-          .menu-toolbar select {
-            flex: 1;
-            min-width: 0;
-            width: 100%;
-          }
-
-          .menu-toolbar-buttons {
-            width: 100% !important;
-            margin-left: 0 !important;
+          .menu-screen-list-items {
             display: flex !important;
+            flex-direction: row !important;
+            overflow-x: auto;
           }
 
-          .menu-toolbar-buttons button {
-            flex: 1;
+          .menu-screen-item {
+            min-width: 145px;
           }
 
-          /*
-           * Workspace móvil:
-           * lienzo arriba + inspector abajo
-           */
-          .menu-workspace {
-            flex-direction: column;
-            overflow-y: auto;
-            overflow-x: hidden;
+          .menu-create-section {
+            display: none !important;
           }
 
-          .menu-canvas-area {
-            width: 100%;
-            flex: none;
-            padding: 8px;
+          .menu-editor-main {
             min-height: 0;
-            height: auto;
+          }
+
+          .menu-screen-settings {
+            overflow-x: auto;
+            flex-wrap: nowrap !important;
+            padding: 8px !important;
+          }
+
+          .menu-screen-settings > div {
+            flex-shrink: 0;
+          }
+
+          .menu-screen-settings-buttons {
+            margin-left: 0 !important;
+          }
+
+          .menu-work-area {
+            flex-direction: column;
+            overflow: hidden;
+          }
+
+          .menu-preview-area {
+            min-height: 0;
+            flex: 1;
+            padding: 8px;
+            overflow: auto;
           }
 
           .menu-canvas {
@@ -703,94 +555,89 @@ export default function MenuScreensModal({
             max-width: none;
           }
 
-          /*
-           * Inspector abajo
-           */
           .menu-inspector {
             width: 100%;
-            height: auto;
-            max-height: 48dvh;
-            min-height: 180px;
-            border-left: none;
+            max-height: 42%;
+            border-left: none !important;
             border-top: 1px solid #1f1f2e;
-            padding: 10px;
-            flex-shrink: 0;
+            padding: 10px !important;
           }
 
-          .menu-mobile-section-title {
-            display: block;
-            font-size: 10px;
-            font-weight: 800;
-            color: #38bdf8;
-            margin-bottom: 2px;
+          .menu-mobile-position {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
           }
+
         }
 
-        /*
-         * TELÉFONOS PEQUEÑOS
-         */
-        @media (max-width: 480px) {
+        @media (max-width: 450px) {
 
-          .menu-header {
-            padding: 7px 9px;
+          .menu-editor-header strong {
+            font-size: 14px !important;
           }
 
-          .menu-header-main {
-            font-size: 12px;
+          .menu-editor-header {
+            padding: 8px 10px !important;
           }
 
           .menu-screen-list {
-            max-height: 125px;
-            padding: 6px;
+            max-height: 120px;
           }
 
-          .menu-toolbar {
-            max-height: 135px;
-          }
-
-          .menu-canvas-area {
+          .menu-preview-area {
             padding: 5px;
           }
 
           .menu-inspector {
-            max-height: 52dvh;
-            padding: 9px;
+            max-height: 48%;
           }
-        }
 
+        }
       `}</style>
 
-      {/* =====================================================
-          MODAL
-          ===================================================== */}
+      <div className="menu-editor-root">
 
-      <div className="menu-modal">
+        {/* HEADER */}
+        <div
+          className="menu-editor-header"
+          style={{
+            padding: '12px 20px',
+            borderBottom: '1px solid #1f1f2e',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#12121e'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}
+          >
+            <span style={{ fontSize: 22 }}>🖥️</span>
 
-        {/* ===================================================
-            CABECERA
-            =================================================== */}
-
-        <div className="menu-header">
-
-          <div className="menu-header-title">
-
-            <span style={{ fontSize: 22 }}>
-              🖥️
-            </span>
-
-            <div className="menu-header-text">
-
-              <strong className="menu-header-main">
+            <div>
+              <strong
+                style={{
+                  fontSize: 16,
+                  color: '#f8fafc'
+                }}
+              >
                 Menús y Pantallas Finales
               </strong>
 
-              <div className="menu-header-description">
-                Diseña pantallas de inicio, finales alternativos,
-                créditos o menús interactivos
+              <div
+                className="menu-editor-header-subtitle"
+                style={{
+                  fontSize: 11,
+                  color: '#94a3b8'
+                }}
+              >
+                Diseña libremente tus menús, finales y pantallas
               </div>
-
             </div>
-
           </div>
 
           <button
@@ -806,21 +653,23 @@ export default function MenuScreensModal({
           >
             ✕
           </button>
-
         </div>
 
-        {/* ===================================================
-            CUERPO
-            =================================================== */}
+        <div className="menu-editor-body">
 
-        <div className="menu-body">
-
-          {/* =================================================
-              PANEL DE PANTALLAS
-              ================================================= */}
-
-          <div className="menu-screen-list">
-
+          {/* LISTA DE PANTALLAS */}
+          <div
+            className="menu-screen-list"
+            style={{
+              borderRight: '1px solid #1f1f2e',
+              background: '#0a0a12',
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              overflowY: 'auto'
+            }}
+          >
             <div
               style={{
                 fontSize: 12,
@@ -831,8 +680,6 @@ export default function MenuScreensModal({
               Pantallas del Proyecto
             </div>
 
-            {/* Inicio del juego */}
-
             <div
               style={{
                 background: '#141422',
@@ -841,7 +688,6 @@ export default function MenuScreensModal({
                 padding: 8
               }}
             >
-
               <label
                 style={{
                   fontSize: 10,
@@ -860,84 +706,58 @@ export default function MenuScreensModal({
                     ? project.startMenuId
                     : 'first_scene'
                 }
-                onChange={(e) => {
-
+                onChange={e => {
                   const val = e.target.value;
 
                   if (val === 'first_scene') {
-
                     setProject(prev => ({
                       ...prev,
                       startScreenType: 'scene',
                       startMenuId: undefined
                     }));
-
                   } else {
-
                     setProject(prev => ({
                       ...prev,
                       startScreenType: 'menu',
                       startMenuId: val
                     }));
-
                   }
-
                 }}
                 style={{
                   width: '100%',
                   background: '#0a0a12',
                   border: '1px solid #333',
                   color: '#38bdf8',
-                  padding: '5px',
+                  padding: 5,
                   borderRadius: 6,
                   fontSize: 11
                 }}
               >
-
                 <option value="first_scene">
                   🎬 Arrancar en Escena 1
                 </option>
 
-                {screensList.map(s => (
+                {screensList.map(screen => (
                   <option
-                    key={s.id}
-                    value={s.id}
+                    key={screen.id}
+                    value={screen.id}
                   >
-                    🖥️ {s.title}
+                    🖥️ {screen.title}
                   </option>
                 ))}
-
               </select>
-
             </div>
 
-            {/* Lista */}
-
             <div
+              className="menu-screen-list-items"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 6,
-                flex: 1,
-                overflowY: 'auto'
+                flex: 1
               }}
             >
-
-              {screensList.length === 0 && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: '#666',
-                    textAlign: 'center',
-                    padding: '20px 0'
-                  }}
-                >
-                  No hay pantallas de menú creadas aún.
-                </div>
-              )}
-
               {screensList.map(screen => {
-
                 const isSelected =
                   currentScreen?.id === screen.id;
 
@@ -947,18 +767,15 @@ export default function MenuScreensModal({
                 return (
                   <div
                     key={screen.id}
+                    className="menu-screen-item"
                     onClick={() => {
-
                       setSelectedScreenId(screen.id);
-
                       setActiveEditingElemId(null);
-
                     }}
                     style={{
-                      background:
-                        isSelected
-                          ? '#1e1e32'
-                          : '#12121c',
+                      background: isSelected
+                        ? '#1e1e32'
+                        : '#12121c',
 
                       border:
                         `1px solid ${
@@ -973,30 +790,17 @@ export default function MenuScreensModal({
 
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center',
-
-                      flexShrink: 0
+                      alignItems: 'center'
                     }}
                   >
-
-                    <div
-                      style={{
-                        minWidth: 0
-                      }}
-                    >
-
+                    <div>
                       <div
                         style={{
                           fontSize: 12,
                           fontWeight: 700,
-                          color:
-                            isSelected
-                              ? '#fff'
-                              : '#ddd',
-
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          color: isSelected
+                            ? '#fff'
+                            : '#ddd'
                         }}
                       >
                         {screen.title}
@@ -1005,10 +809,9 @@ export default function MenuScreensModal({
                       <div
                         style={{
                           fontSize: 9,
-                          color:
-                            isStart
-                              ? '#10b981'
-                              : '#888'
+                          color: isStart
+                            ? '#10b981'
+                            : '#888'
                         }}
                       >
                         {isStart
@@ -1017,12 +820,10 @@ export default function MenuScreensModal({
                             ? 'Pantalla Final'
                             : 'Menú'}
                       </div>
-
                     </div>
 
                     <button
-                      onClick={(e) => {
-
+                      onClick={e => {
                         e.stopPropagation();
 
                         if (
@@ -1032,40 +833,33 @@ export default function MenuScreensModal({
                         ) {
                           deleteMenuScreen(screen.id);
                         }
-
                       }}
-                      title="Eliminar pantalla"
                       style={{
                         background: 'none',
                         border: 'none',
                         color: '#ef4444',
                         cursor: 'pointer',
-                        fontSize: 12,
-                        flexShrink: 0
+                        fontSize: 12
                       }}
                     >
                       🗑️
                     </button>
-
                   </div>
                 );
               })}
-
             </div>
 
-            {/* Crear pantalla */}
-
+            {/* CREAR PANTALLA */}
             <div
+              className="menu-create-section"
               style={{
                 borderTop: '1px solid #1f1f2e',
                 paddingTop: 8,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 6,
-                flexShrink: 0
+                gap: 6
               }}
             >
-
               <input
                 type="text"
                 placeholder="Nombre de la pantalla..."
@@ -1079,8 +873,7 @@ export default function MenuScreensModal({
                   color: '#fff',
                   padding: '6px 8px',
                   borderRadius: 6,
-                  fontSize: 11,
-                  width: '100%'
+                  fontSize: 11
                 }}
               />
 
@@ -1090,14 +883,13 @@ export default function MenuScreensModal({
                   gap: 4
                 }}
               >
-
                 <button
                   onClick={() =>
                     handleCreateScreen('start_menu')
                   }
                   style={{
                     flex: 1,
-                    padding: '6px',
+                    padding: 6,
                     background: '#2563eb',
                     border: 'none',
                     borderRadius: 6,
@@ -1116,7 +908,7 @@ export default function MenuScreensModal({
                   }
                   style={{
                     flex: 1,
-                    padding: '6px',
+                    padding: 6,
                     background: '#7c3aed',
                     border: 'none',
                     borderRadius: 6,
@@ -1126,31 +918,36 @@ export default function MenuScreensModal({
                     cursor: 'pointer'
                   }}
                 >
-                  + Final / Créditos
+                  + Final
                 </button>
-
               </div>
-
             </div>
-
           </div>
 
-          {/* =================================================
-              EDITOR
-              ================================================= */}
-
+          {/* EDITOR */}
           {currentScreen ? (
+            <div className="menu-editor-main">
 
-            <div className="menu-editor">
-
-              {/* =============================================
-                  BARRA DE PROPIEDADES
-                  ============================================= */}
-
-              <div className="menu-toolbar">
-
-                <div className="menu-toolbar-field">
-
+              {/* CONFIGURACIÓN DE PANTALLA */}
+              <div
+                className="menu-screen-settings"
+                style={{
+                  padding: '10px 16px',
+                  borderBottom: '1px solid #1f1f2e',
+                  background: '#12121e',
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
                   <label
                     style={{
                       fontSize: 11,
@@ -1161,10 +958,9 @@ export default function MenuScreensModal({
                   </label>
 
                   <input
-                    className="menu-toolbar-input"
                     type="text"
                     value={currentScreen.title}
-                    onChange={(e) =>
+                    onChange={e =>
                       addOrUpdateMenuScreen({
                         ...currentScreen,
                         title: e.target.value
@@ -1180,11 +976,15 @@ export default function MenuScreensModal({
                       fontWeight: 700
                     }}
                   />
-
                 </div>
 
-                <div className="menu-toolbar-field">
-
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
                   <label
                     style={{
                       fontSize: 11,
@@ -1195,14 +995,11 @@ export default function MenuScreensModal({
                   </label>
 
                   <select
-                    value={
-                      currentScreen.backgroundUrl
-                    }
-                    onChange={(e) =>
+                    value={currentScreen.backgroundUrl}
+                    onChange={e =>
                       addOrUpdateMenuScreen({
                         ...currentScreen,
-                        backgroundUrl:
-                          e.target.value
+                        backgroundUrl: e.target.value
                       })
                     }
                     style={{
@@ -1214,7 +1011,6 @@ export default function MenuScreensModal({
                       fontSize: 11
                     }}
                   >
-
                     <option value="">
                       (Sin Fondo / Negro)
                     </option>
@@ -1227,76 +1023,17 @@ export default function MenuScreensModal({
                         {bg.name}
                       </option>
                     ))}
-
                   </select>
-
-                </div>
-
-                <div className="menu-toolbar-field">
-
-                  <label
-                    style={{
-                      fontSize: 11,
-                      color: '#aaa'
-                    }}
-                  >
-                    Música BGM:
-                  </label>
-
-                  <select
-                    value={
-                      currentScreen.bgmUrl || ''
-                    }
-                    onChange={(e) =>
-                      addOrUpdateMenuScreen({
-                        ...currentScreen,
-                        bgmUrl:
-                          e.target.value ||
-                          undefined
-                      })
-                    }
-                    style={{
-                      background: '#161624',
-                      border: '1px solid #333',
-                      color: '#a855f7',
-                      padding: '4px 8px',
-                      borderRadius: 6,
-                      fontSize: 11
-                    }}
-                  >
-
-                    <option value="">
-                      (Sin música)
-                    </option>
-
-                    <option value="stop">
-                      🛑 Detener música anterior
-                    </option>
-
-                    {project.audioGallery
-                      ?.filter(a => a.type === 'bgm')
-                      .map(bgm => (
-                        <option
-                          key={bgm.id}
-                          value={bgm.url}
-                        >
-                          🎵 {bgm.name}
-                        </option>
-                      ))}
-
-                  </select>
-
                 </div>
 
                 <div
-                  className="menu-toolbar-buttons"
+                  className="menu-screen-settings-buttons"
                   style={{
                     marginLeft: 'auto',
                     display: 'flex',
                     gap: 6
                   }}
                 >
-
                   <button
                     onClick={() =>
                       handleAddElement('text')
@@ -1312,7 +1049,7 @@ export default function MenuScreensModal({
                       cursor: 'pointer'
                     }}
                   >
-                    + Añadir Texto
+                    + Texto
                   </button>
 
                   <button
@@ -1330,74 +1067,71 @@ export default function MenuScreensModal({
                       cursor: 'pointer'
                     }}
                   >
-                    + Añadir Botón
+                    + Botón
                   </button>
-
                 </div>
-
               </div>
 
-              {/* =============================================
-                  WORKSPACE
-                  ============================================= */}
+              {/* LIENZO + INSPECTOR */}
+              <div className="menu-work-area">
 
-              <div className="menu-workspace">
-
-                {/* ===========================================
-                    LIENZO
-                    =========================================== */}
-
-                <div className="menu-canvas-area">
-
+                {/* LIENZO */}
+                <div
+                  className="menu-preview-area"
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                >
                   <div
+                    ref={canvasRef}
                     className="menu-canvas"
                     style={{
+                      position: 'relative',
                       backgroundImage:
                         currentScreen.backgroundUrl
                           ? `url(${currentScreen.backgroundUrl})`
-                          : undefined
+                          : undefined,
+                      backgroundColor: '#0c0c16',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      borderRadius: 10,
+                      border: '1.5px solid #2d2d42',
+                      boxShadow:
+                        '0 10px 40px rgba(0,0,0,0.8)',
+                      overflow: 'hidden'
                     }}
                   >
 
                     {currentScreen.elements?.map(el => {
-
-                      const position =
-                        getElementPosition(el);
+                      const x = getElementX(el);
+                      const y = getElementY(el);
 
                       const isSelected =
                         activeEditingElemId === el.id;
 
-                      return (
+                      const isDragging =
+                        draggingElementId === el.id;
 
+                      return (
                         <div
                           key={el.id}
                           className="menu-element"
-
-                          onPointerDown={(e) =>
-                            handleElementPointerDown(
-                              e,
-                              el
-                            )
+                          onPointerDown={e =>
+                            handlePointerDown(e, el)
                           }
-
-                          onClick={(e) => {
-
-                            e.stopPropagation();
-
-                            setActiveEditingElemId(
-                              el.id
-                            );
-
-                          }}
-
                           style={{
-                            left: `${position.x}%`,
-                            top: `${position.y}%`,
+                            position: 'absolute',
+
+                            left: `${x}%`,
+                            top: `${y}%`,
 
                             transform:
                               'translate(-50%, -50%)',
 
-                            cursor: 'grab',
+                            cursor:
+                              isDragging
+                                ? 'grabbing'
+                                : 'grab',
 
                             outline:
                               isSelected
@@ -1409,194 +1143,179 @@ export default function MenuScreensModal({
                             zIndex:
                               isSelected
                                 ? 40
-                                : 20
+                                : 20,
+
+                            touchAction: 'none'
                           }}
                         >
-
-                          {el.type === 'button' ? (
-
-                            <div
-                              style={{
-                                background:
-                                  el.styleVariant ===
-                                  'danger'
-                                    ? '#dc2626'
-                                    : el.styleVariant ===
-                                      'glass'
-                                      ? 'rgba(15,23,42,0.75)'
-                                      : el.styleVariant ===
-                                        'secondary'
-                                        ? '#1e293b'
-                                        : '#2563eb',
-
-                                color: '#fff',
-
-                                padding:
-                                  '6px 14px',
-
-                                borderRadius: 6,
-
-                                fontSize: 12,
-
-                                fontWeight: 800,
-
-                                whiteSpace:
-                                  'nowrap',
-
-                                boxShadow:
-                                  '0 4px 12px rgba(0,0,0,0.5)'
-                              }}
-                            >
-                              {el.text}
-                            </div>
-
-                          ) : (
-
-                            <div
-                              style={{
-                                color:
-                                  el.styleVariant ===
-                                  'title'
-                                    ? '#38bdf8'
-                                    : '#e2e8f0',
-
-                                fontSize:
-                                  el.styleVariant ===
-                                  'title'
-                                    ? 18
-                                    : 13,
-
-                                fontWeight:
-                                  el.styleVariant ===
-                                  'title'
-                                    ? 900
-                                    : 600,
-
-                                textShadow:
-                                  '0 2px 8px rgba(0,0,0,0.8)',
-
-                                whiteSpace:
-                                  'nowrap'
-                              }}
-                            >
-                              {el.text}
-                            </div>
-
-                          )}
-
+                          <div
+                            style={getElementStyle(el)}
+                          >
+                            {el.text}
+                          </div>
                         </div>
-
                       );
-
                     })}
 
+                    {/* INDICACIÓN DEL MODO DE EDICIÓN */}
+                    {currentScreen.elements?.length === 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#64748b',
+                          fontSize: 12,
+                          textAlign: 'center',
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        Añade un texto o botón
+                        <br />
+                        y arrástralo libremente.
+                      </div>
+                    )}
                   </div>
-
                 </div>
 
-                {/* ===========================================
-                    INSPECTOR
-                    =========================================== */}
+                {/* INSPECTOR */}
+                <div
+                  className="menu-inspector"
+                  style={{
+                    borderLeft: '1px solid #1f1f2e',
+                    background: '#0d0d16',
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12
+                  }}
+                >
+                  {activeEditingElemId ? (() => {
+                    const el =
+                      currentScreen.elements?.find(
+                        e =>
+                          e.id ===
+                          activeEditingElemId
+                      );
 
-                <div className="menu-inspector">
-
-                  <div className="menu-mobile-section-title">
-                    INSPECTOR
-                  </div>
-
-                  {activeEditingElemId ? (
-
-                    (() => {
-
-                      const el =
-                        currentScreen.elements?.find(
-                          e =>
-                            e.id ===
-                            activeEditingElemId
-                        );
-
-                      if (!el) {
-
-                        return (
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: '#888'
-                            }}
-                          >
-                            Selecciona un elemento
-                            para editarlo.
-                          </div>
-                        );
-
-                      }
-
-                      const position =
-                        getElementPosition(el);
-
+                    if (!el) {
                       return (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: '#888'
+                          }}
+                        >
+                          Selecciona un elemento.
+                        </div>
+                      );
+                    }
+
+                    const x = getElementX(el);
+                    const y = getElementY(el);
+
+                    return (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 10
+                        }}
+                      >
 
                         <div
                           style={{
                             display: 'flex',
-                            flexDirection: 'column',
-                            gap: 10
+                            justifyContent:
+                              'space-between',
+                            alignItems: 'center'
                           }}
                         >
-
-                          {/* Título inspector */}
-
-                          <div
+                          <strong
                             style={{
-                              display: 'flex',
-                              justifyContent:
-                                'space-between',
-                              alignItems:
-                                'center'
+                              fontSize: 13,
+                              color: '#38bdf8'
                             }}
                           >
-
-                            <strong
-                              style={{
-                                fontSize: 13,
-                                color: '#38bdf8'
-                              }}
-                            >
-                              {el.type === 'button'
-                                ? '⚙️ Editar Botón'
+                            {el.type === 'button'
+                              ? '⚙️ Editar Botón'
+                              : el.type === 'card'
+                                ? '🗂️ Editar Tarjeta'
                                 : '✍️ Editar Texto'}
-                            </strong>
+                          </strong>
 
-                            <button
-                              onClick={() => {
+                          <button
+                            onClick={() => {
+                              deleteMenuElement(
+                                currentScreen.id,
+                                el.id
+                              );
+                              setActiveEditingElemId(
+                                null
+                              );
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#ef4444',
+                              fontSize: 12,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
 
-                                deleteMenuElement(
-                                  currentScreen.id,
-                                  el.id
-                                );
+                        {/* TEXTO */}
+                        <div>
+                          <label
+                            style={{
+                              fontSize: 10,
+                              color: '#aaa',
+                              display: 'block',
+                              marginBottom: 2
+                            }}
+                          >
+                            Texto
+                          </label>
 
-                                setActiveEditingElemId(
-                                  null
-                                );
+                          <input
+                            type="text"
+                            value={el.text}
+                            onChange={e =>
+                              updateElement(
+                                el,
+                                {
+                                  text:
+                                    e.target.value
+                                }
+                              )
+                            }
+                            style={{
+                              width: '100%',
+                              background: '#161624',
+                              border: '1px solid #333',
+                              color: '#fff',
+                              padding: '6px 8px',
+                              borderRadius: 6,
+                              fontSize: 12
+                            }}
+                          />
+                        </div>
 
-                              }}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#ef4444',
-                                fontSize: 12,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Eliminar
-                            </button>
-
-                          </div>
-
-                          {/* Texto */}
-
+                        {/* POSICIÓN LIBRE */}
+                        <div
+                          className="menu-mobile-position"
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns:
+                              '1fr 1fr',
+                            gap: 8
+                          }}
+                        >
                           <div>
-
                             <label
                               style={{
                                 fontSize: 10,
@@ -1605,581 +1324,428 @@ export default function MenuScreensModal({
                                 marginBottom: 2
                               }}
                             >
-                              Texto
+                              X (%)
                             </label>
 
                             <input
-                              type="text"
-                              value={el.text}
-                              onChange={(e) =>
-                                addOrUpdateMenuElement(
-                                  currentScreen.id,
-                                  {
-                                    ...el,
-                                    text:
-                                      e.target.value
-                                  }
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.1}
+                              value={
+                                Number(
+                                  x.toFixed(1)
                                 )
                               }
+                              onChange={e => {
+                                const value =
+                                  Number(
+                                    e.target.value
+                                  );
+
+                                if (
+                                  !Number.isFinite(
+                                    value
+                                  )
+                                ) {
+                                  return;
+                                }
+
+                                updateElement(
+                                  normalizeElementPosition(
+                                    el
+                                  ),
+                                  {
+                                    x: clamp(
+                                      value,
+                                      0,
+                                      100
+                                    )
+                                  }
+                                );
+                              }}
                               style={{
                                 width: '100%',
                                 background: '#161624',
-                                border:
-                                  '1px solid #333',
-                                color: '#fff',
-                                padding:
-                                  '6px 8px',
+                                border: '1px solid #333',
+                                color: '#38bdf8',
+                                padding: '6px 8px',
                                 borderRadius: 6,
                                 fontSize: 12
                               }}
                             />
-
                           </div>
 
-                          {/* =================================
-                              POSICIÓN LIBRE
-                              ================================= */}
+                          <div>
+                            <label
+                              style={{
+                                fontSize: 10,
+                                color: '#aaa',
+                                display: 'block',
+                                marginBottom: 2
+                              }}
+                            >
+                              Y (%)
+                            </label>
 
-                          <div
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.1}
+                              value={
+                                Number(
+                                  y.toFixed(1)
+                                )
+                              }
+                              onChange={e => {
+                                const value =
+                                  Number(
+                                    e.target.value
+                                  );
+
+                                if (
+                                  !Number.isFinite(
+                                    value
+                                  )
+                                ) {
+                                  return;
+                                }
+
+                                updateElement(
+                                  normalizeElementPosition(
+                                    el
+                                  ),
+                                  {
+                                    y: clamp(
+                                      value,
+                                      0,
+                                      100
+                                    )
+                                  }
+                                );
+                              }}
+                              style={{
+                                width: '100%',
+                                background: '#161624',
+                                border: '1px solid #333',
+                                color: '#38bdf8',
+                                padding: '6px 8px',
+                                borderRadius: 6,
+                                fontSize: 12
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 9,
+                            color: '#64748b'
+                          }}
+                        >
+                          También puedes arrastrar
+                          directamente el elemento
+                          dentro del lienzo.
+                        </div>
+
+                        {/* ESTILO */}
+                        <div>
+                          <label
                             style={{
-                              background:
-                                '#131320',
-
-                              border:
-                                '1px solid #232338',
-
-                              borderRadius: 8,
-
-                              padding: 8,
-
-                              display: 'flex',
-
-                              flexDirection:
-                                'column',
-
-                              gap: 7
+                              fontSize: 10,
+                              color: '#aaa',
+                              display: 'block',
+                              marginBottom: 2
                             }}
                           >
+                            Estilo Visual
+                          </label>
 
-                            <div
+                          <select
+                            value={el.styleVariant}
+                            onChange={e =>
+                              updateElement(
+                                el,
+                                {
+                                  styleVariant:
+                                    e.target
+                                      .value as MenuElementStyle
+                                }
+                              )
+                            }
+                            style={{
+                              width: '100%',
+                              background: '#161624',
+                              border: '1px solid #333',
+                              color: '#fff',
+                              padding: 5,
+                              borderRadius: 6,
+                              fontSize: 11
+                            }}
+                          >
+                            <option value="primary">
+                              Primario (Azul)
+                            </option>
+
+                            <option value="secondary">
+                              Secundario (Gris)
+                            </option>
+
+                            <option value="glass">
+                              Cristal / Glass
+                            </option>
+
+                            <option value="danger">
+                              Peligro / Salir
+                            </option>
+
+                            <option value="title">
+                              Título Destacado
+                            </option>
+
+                            <option value="subtitle">
+                              Subtítulo
+                            </option>
+                          </select>
+                        </div>
+
+                        {/* ACCIÓN */}
+                        {el.type === 'button' && (
+                          <div
+                            style={{
+                              background: '#131320',
+                              border:
+                                '1px solid #232338',
+                              borderRadius: 8,
+                              padding: 8,
+                              display: 'flex',
+                              flexDirection:
+                                'column',
+                              gap: 6
+                            }}
+                          >
+                            <label
                               style={{
                                 fontSize: 10,
                                 color: '#38bdf8',
                                 fontWeight: 800
                               }}
                             >
-                              Posición libre
-                            </div>
-
-                            <div
-                              style={{
-                                fontSize: 9,
-                                color: '#777'
-                              }}
-                            >
-                              También podés
-                              arrastrar el elemento
-                              directamente en el
-                              lienzo.
-                            </div>
-
-                            <div
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns:
-                                  '1fr 1fr',
-                                gap: 8
-                              }}
-                            >
-
-                              {/* X */}
-
-                              <div>
-
-                                <label
-                                  style={{
-                                    fontSize: 9,
-                                    color: '#aaa',
-                                    display:
-                                      'block',
-                                    marginBottom:
-                                      2
-                                  }}
-                                >
-                                  X (%)
-                                </label>
-
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  step={0.1}
-                                  value={
-                                    position.x
-                                  }
-                                  onChange={(e) => {
-
-                                    const value =
-                                      Number(
-                                        e.target
-                                          .value
-                                      );
-
-                                    addOrUpdateMenuElement(
-                                      currentScreen.id,
-                                      {
-                                        ...el,
-                                        x: Math.max(
-                                          0,
-                                          Math.min(
-                                            100,
-                                            value
-                                          )
-                                        ),
-                                        y: position.y
-                                      }
-                                    );
-
-                                  }}
-                                  style={{
-                                    width: '100%',
-                                    background:
-                                      '#161624',
-                                    border:
-                                      '1px solid #333',
-                                    color: '#fff',
-                                    padding: '5px',
-                                    borderRadius:
-                                      6,
-                                    fontSize: 11
-                                  }}
-                                />
-
-                              </div>
-
-                              {/* Y */}
-
-                              <div>
-
-                                <label
-                                  style={{
-                                    fontSize: 9,
-                                    color: '#aaa',
-                                    display:
-                                      'block',
-                                    marginBottom:
-                                      2
-                                  }}
-                                >
-                                  Y (%)
-                                </label>
-
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  step={0.1}
-                                  value={
-                                    position.y
-                                  }
-                                  onChange={(e) => {
-
-                                    const value =
-                                      Number(
-                                        e.target
-                                          .value
-                                      );
-
-                                    addOrUpdateMenuElement(
-                                      currentScreen.id,
-                                      {
-                                        ...el,
-                                        x: position.x,
-                                        y: Math.max(
-                                          0,
-                                          Math.min(
-                                            100,
-                                            value
-                                          )
-                                        )
-                                      }
-                                    );
-
-                                  }}
-                                  style={{
-                                    width: '100%',
-                                    background:
-                                      '#161624',
-                                    border:
-                                      '1px solid #333',
-                                    color: '#fff',
-                                    padding: '5px',
-                                    borderRadius:
-                                      6,
-                                    fontSize: 11
-                                  }}
-                                />
-
-                              </div>
-
-                            </div>
-
-                          </div>
-
-                          {/* Estilo */}
-
-                          <div>
-
-                            <label
-                              style={{
-                                fontSize: 10,
-                                color: '#aaa',
-                                display:
-                                  'block',
-                                marginBottom: 2
-                              }}
-                            >
-                              Estilo Visual
+                              Acción al hacer clic
                             </label>
 
                             <select
                               value={
-                                el.styleVariant
+                                el.action?.type ||
+                                'start_game'
                               }
-                              onChange={(e) =>
-                                addOrUpdateMenuElement(
-                                  currentScreen.id,
+                              onChange={e =>
+                                updateElement(
+                                  el,
                                   {
-                                    ...el,
-                                    styleVariant:
-                                      e.target
-                                        .value as MenuElementStyle
+                                    action: {
+                                      type:
+                                        e.target
+                                          .value as any,
+                                      targetSceneId:
+                                        scenesList[0]
+                                          ?.id || ''
+                                    }
                                   }
                                 )
                               }
                               style={{
                                 width: '100%',
-                                background:
-                                  '#161624',
-                                border:
-                                  '1px solid #333',
+                                background: '#161624',
+                                border: '1px solid #333',
                                 color: '#fff',
-                                padding: '5px',
+                                padding: 5,
                                 borderRadius: 6,
                                 fontSize: 11
                               }}
                             >
-
-                              <option value="primary">
-                                Primario (Azul)
+                              <option value="start_game">
+                                ▶ Comenzar Juego
                               </option>
 
-                              <option value="secondary">
-                                Secundario (Gris)
+                              <option value="jump_to_scene">
+                                🎬 Saltar a Escena
                               </option>
 
-                              <option value="glass">
-                                Cristal / Glass
+                              <option value="jump_to_menu">
+                                🖥️ Saltar a Menú
                               </option>
 
-                              <option value="danger">
-                                Peligro / Salir (Rojo)
+                              <option value="open_save_load">
+                                💾 Guardar / Cargar
                               </option>
 
-                              <option value="title">
-                                Título Destacado
+                              <option value="restart">
+                                🔄 Reiniciar Partida
                               </option>
-
-                              <option value="subtitle">
-                                Subtítulo
-                              </option>
-
                             </select>
 
-                          </div>
+                            {el.action?.type ===
+                              'jump_to_scene' && (
+                              <div>
+                                <label
+                                  style={{
+                                    fontSize: 9,
+                                    color: '#aaa'
+                                  }}
+                                >
+                                  Escena Destino:
+                                </label>
 
-                          {/* =================================
-                              ACCIÓN DEL BOTÓN
-                              ================================= */}
-
-                          {el.type === 'button' && (
-
-                            <div
-                              style={{
-                                background:
-                                  '#131320',
-
-                                border:
-                                  '1px solid #232338',
-
-                                borderRadius: 8,
-
-                                padding: 8,
-
-                                display: 'flex',
-
-                                flexDirection:
-                                  'column',
-
-                                gap: 6
-                              }}
-                            >
-
-                              <label
-                                style={{
-                                  fontSize: 10,
-                                  color: '#38bdf8',
-                                  fontWeight: 800
-                                }}
-                              >
-                                Acción al hacer clic
-                              </label>
-
-                              <select
-                                value={
-                                  el.action?.type ||
-                                  'start_game'
-                                }
-                                onChange={(e) =>
-                                  addOrUpdateMenuElement(
-                                    currentScreen.id,
-                                    {
-                                      ...el,
-                                      action: {
-                                        type:
-                                          e.target
-                                            .value as any,
-
-                                        targetSceneId:
-                                          scenesList[0]
-                                            ?.id ||
-                                          ''
+                                <select
+                                  value={
+                                    el.action
+                                      .targetSceneId ||
+                                    scenesList[0]?.id ||
+                                    ''
+                                  }
+                                  onChange={e =>
+                                    updateElement(
+                                      el,
+                                      {
+                                        action: {
+                                          ...el.action!,
+                                          targetSceneId:
+                                            e.target
+                                              .value
+                                        }
                                       }
-                                    }
-                                  )
-                                }
-                                style={{
-                                  width: '100%',
-                                  background:
-                                    '#161624',
-                                  border:
-                                    '1px solid #333',
-                                  color: '#fff',
-                                  padding: '5px',
-                                  borderRadius: 6,
-                                  fontSize: 11
-                                }}
-                              >
-
-                                <option value="start_game">
-                                  ▶ Comenzar Juego
-                                </option>
-
-                                <option value="jump_to_scene">
-                                  🎬 Saltar a Escena Específica
-                                </option>
-
-                                <option value="jump_to_menu">
-                                  🖥️ Saltar a otro Menú / Final
-                                </option>
-
-                                <option value="open_save_load">
-                                  💾 Abrir Guardar / Cargar
-                                </option>
-
-                                <option value="restart">
-                                  🔄 Reiniciar Partida
-                                </option>
-
-                              </select>
-
-                              {/* Escena destino */}
-
-                              {el.action?.type ===
-                                'jump_to_scene' && (
-
-                                <div>
-
-                                  <label
-                                    style={{
-                                      fontSize: 9,
-                                      color: '#aaa'
-                                    }}
-                                  >
-                                    Escena Destino:
-                                  </label>
-
-                                  <select
-                                    value={
-                                      el.action
-                                        .targetSceneId ||
-                                      scenesList[0]
-                                        ?.id ||
-                                      ''
-                                    }
-                                    onChange={(e) =>
-                                      addOrUpdateMenuElement(
-                                        currentScreen.id,
-                                        {
-                                          ...el,
-
-                                          action: {
-                                            ...el.action!,
-
-                                            targetSceneId:
-                                              e.target
-                                                .value
-                                          }
+                                    )
+                                  }
+                                  style={{
+                                    width: '100%',
+                                    background:
+                                      '#161624',
+                                    border:
+                                      '1px solid #333',
+                                    color:
+                                      '#38bdf8',
+                                    padding: 4,
+                                    borderRadius: 6,
+                                    fontSize: 11
+                                  }}
+                                >
+                                  {scenesList.map(
+                                    (
+                                      scene: any
+                                    ) => (
+                                      <option
+                                        key={
+                                          scene.id
                                         }
-                                      )
-                                    }
-                                    style={{
-                                      width: '100%',
-                                      background:
-                                        '#161624',
-                                      border:
-                                        '1px solid #333',
-                                      color:
-                                        '#38bdf8',
-                                      padding:
-                                        '4px',
-                                      borderRadius:
-                                        6,
-                                      fontSize:
-                                        11
-                                    }}
-                                  >
-
-                                    {scenesList.map(
-                                      (sc: any) => (
-                                        <option
-                                          key={sc.id}
-                                          value={sc.id}
-                                        >
-                                          {sc.title}
-                                        </option>
-                                      )
-                                    )}
-
-                                  </select>
-
-                                </div>
-
-                              )}
-
-                              {/* Menú destino */}
-
-                              {el.action?.type ===
-                                'jump_to_menu' && (
-
-                                <div>
-
-                                  <label
-                                    style={{
-                                      fontSize: 9,
-                                      color: '#aaa'
-                                    }}
-                                  >
-                                    Menú Destino:
-                                  </label>
-
-                                  <select
-                                    value={
-                                      el.action
-                                        .targetMenuId ||
-                                      screensList[0]
-                                        ?.id ||
-                                      ''
-                                    }
-                                    onChange={(e) =>
-                                      addOrUpdateMenuElement(
-                                        currentScreen.id,
-                                        {
-                                          ...el,
-
-                                          action: {
-                                            ...el.action!,
-
-                                            targetMenuId:
-                                              e.target
-                                                .value
-                                          }
+                                        value={
+                                          scene.id
                                         }
-                                      )
-                                    }
-                                    style={{
-                                      width: '100%',
-                                      background:
-                                        '#161624',
-                                      border:
-                                        '1px solid #333',
-                                      color:
-                                        '#a855f7',
-                                      padding:
-                                        '4px',
-                                      borderRadius:
-                                        6,
-                                      fontSize:
-                                        11
-                                    }}
-                                  >
+                                      >
+                                        {scene.title}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+                              </div>
+                            )}
 
-                                    {screensList
-                                      .filter(
-                                        s =>
-                                          s.id !==
-                                          currentScreen.id
-                                      )
-                                      .map(s => (
+                            {el.action?.type ===
+                              'jump_to_menu' && (
+                              <div>
+                                <label
+                                  style={{
+                                    fontSize: 9,
+                                    color: '#aaa'
+                                  }}
+                                >
+                                  Menú Destino:
+                                </label>
+
+                                <select
+                                  value={
+                                    el.action
+                                      .targetMenuId ||
+                                    screensList.find(
+                                      s =>
+                                        s.id !==
+                                        currentScreen.id
+                                    )?.id ||
+                                    ''
+                                  }
+                                  onChange={e =>
+                                    updateElement(
+                                      el,
+                                      {
+                                        action: {
+                                          ...el.action!,
+                                          targetMenuId:
+                                            e.target
+                                              .value
+                                        }
+                                      }
+                                    )
+                                  }
+                                  style={{
+                                    width: '100%',
+                                    background:
+                                      '#161624',
+                                    border:
+                                      '1px solid #333',
+                                    color:
+                                      '#a855f7',
+                                    padding: 4,
+                                    borderRadius: 6,
+                                    fontSize: 11
+                                  }}
+                                >
+                                  {screensList
+                                    .filter(
+                                      s =>
+                                        s.id !==
+                                        currentScreen.id
+                                    )
+                                    .map(
+                                      s => (
                                         <option
                                           key={s.id}
-                                          value={s.id}
+                                          value={
+                                            s.id
+                                          }
                                         >
                                           {s.title}
                                         </option>
-                                      ))}
-
-                                  </select>
-
-                                </div>
-
-                              )}
-
-                            </div>
-
-                          )}
-
-                        </div>
-
-                      );
-
-                    })()
-
-                  ) : (
-
+                                      )
+                                    )}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })() : (
                     <div
                       style={{
                         fontSize: 11,
                         color: '#888',
                         textAlign: 'center',
-                        padding: '30px 0'
+                        padding: '30px 10px'
                       }}
                     >
-                      Haz clic en un elemento
-                      del lienzo o añade uno nuevo
-                      para configurarlo.
+                      Selecciona un elemento del
+                      lienzo.
+                      <br />
+                      <br />
+                      Puedes moverlo libremente con
+                      el mouse o con el dedo.
                     </div>
-
                   )}
-
                 </div>
-
               </div>
-
             </div>
-
           ) : (
-
             <div
               style={{
                 flex: 1,
@@ -2192,17 +1758,12 @@ export default function MenuScreensModal({
                 padding: 20
               }}
             >
-              Crea o selecciona una pantalla
-              en el panel izquierdo para
+              Crea o selecciona una pantalla para
               comenzar a diseñarla.
             </div>
-
           )}
-
         </div>
-
       </div>
-
     </div>
   );
 }
