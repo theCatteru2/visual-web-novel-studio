@@ -60,8 +60,8 @@ export interface DialogueEvent {
   speakerId: string;
   text: string;
   backgroundUrl?: string;
-  bgmUrl?: string;        // URL/Base64 del BGM o 'stop' para apagar
-  sfxUrl?: string;        // Disparo único al entrar a la viñeta
+  bgmUrl?: string; // URL/Base64 del BGM o 'stop' para apagar
+  sfxUrl?: string; // Disparo único al entrar a la viñeta
   charactersOnStage: StageCharacterInstance[];
   effect?: ScreenEffect;
   jumpToBranchId?: string;
@@ -153,7 +153,7 @@ export interface NovelProject {
   askPlayerName?: boolean;
   defaultPlayerName?: string;
   backgroundGallery: { id: string; name: string; url: string }[];
-  audioGallery?: ProjectAudioItem[]; // Almacén de audios importados
+  audioGallery?: ProjectAudioItem[];
   variables: Record<string, CustomVariable>;
   characters: Record<string, Character>;
   chapters: Chapter[];
@@ -169,7 +169,7 @@ export interface PlayerGameState {
   runtimeCharacters: Record<string, Character>;
   history: string[];
   activeEffect?: ScreenEffect;
-  currentBgmUrl?: string; // Música sonando actualmente
+  currentBgmUrl?: string;
 }
 
 export interface SaveSlot {
@@ -197,7 +197,6 @@ export interface LibraryNovelEntry {
   saveSlots: Record<string, SaveSlot>;
 }
 
-// Asset subido al bazar de la comunidad
 export interface CommunityAsset {
   id: string;
   title: string;
@@ -210,7 +209,6 @@ export interface CommunityAsset {
   isNsfw?: boolean;
 }
 
-// Novela publicada en la comunidad
 export interface CommunityNovel {
   id: string;
   title: string;
@@ -223,4 +221,12 @@ export interface CommunityNovel {
   createdAt: number;
   projectData: NovelProject;
   allowCommunityEdit?: boolean;
+}
+
+// Metadatos de la sesión de juego activa en el reproductor
+export interface PlaySessionInfo {
+  isEditorPlaytest: boolean;
+  canEdit: boolean;
+  novelId?: string;
+  novelTitle?: string;
 }
