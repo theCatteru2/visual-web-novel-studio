@@ -25,7 +25,15 @@ const MAX_NOVELS_LIMIT = 15;
 
 export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublishModal }: MyLibraryViewProps) {
   const { user, loginWithGoogle } = useAuth();
-  const { project, setProject, startPlaytest, setActiveLibraryNovelId, activeLibraryNovelId, resetProjectToDefault } = useNovel();
+  const { 
+    project, 
+    loadProjectToEditor, 
+    launchPlayer, 
+    exportProjectJson, 
+    setActiveLibraryNovelId, 
+    activeLibraryNovelId, 
+    resetProjectToDefault 
+  } = useNovel();
 
   const [savedNovels, setSavedNovels] = useState<SavedNovelItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -40,10 +48,10 @@ export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublish
       const snap = await getDocs(q);
       const list = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as SavedNovelItem))
-        .sort((a, b) => b.updatedAt - a.updatedAt);
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       setSavedNovels(list);
-    } catch (e) {
-      console.error('Error al cargar biblioteca:', e);
+    } catch (err) {
+      console.error('Error al obtener biblioteca de usuario:', err);
     } finally {
       setLoading(false);
     }
@@ -53,286 +61,268 @@ export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublish
     fetchLibrary();
   }, [user]);
 
-  // Guardar proyecto actual (si ya existe se actualiza, si no se crea nuevo)
-  const handleSaveCurrentToLibrary = async () => {
-    if (!user) return alert('Inicia sesión para guardar en tu biblioteca.');
+  const handleSaveCurrentToNewSlot = async () => {
+    if (!user) {
+      alert('Debes iniciar sesión con Google para guardar en la nube.');
+      return;
+    }
+
+    if (savedNovels.length >= MAX_NOVELS_LIMIT) {
+      alert(`Has alcanzado el límite máximo de ${MAX_NOVELS_LIMIT} novelas en tu biblioteca.`);
+      return;
+    }
 
     const scenes = (project as any).scenes || project.chapters?.[0]?.scenes || [];
     const cover = project.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl || '';
 
     try {
-      if (activeLibraryNovelId) {
-        await updateDoc(doc(db, 'user_library', activeLibraryNovelId), {
-          title: project.title || 'Novela sin título',
-          description: project.description || '',
-          coverUrl: cover,
-          updatedAt: Date.now(),
-          projectData: project
-        });
-        alert('¡Cambios guardados en tu novela de la biblioteca!');
-      } else {
-        if (savedNovels.length >= MAX_NOVELS_LIMIT) {
-          return alert(`Has alcanzado el límite de ${MAX_NOVELS_LIMIT} novelas privadas.`);
-        }
-        const docRef = await addDoc(collection(db, 'user_library'), {
-          userId: user.uid,
-          title: project.title || 'Novela sin título',
-          description: project.description || '',
-          coverUrl: cover,
-          updatedAt: Date.now(),
-          projectData: project
-        });
-        setActiveLibraryNovelId(docRef.id);
-        alert('¡Proyecto guardado en tu biblioteca privada!');
-      }
-      fetchLibrary();
+      const newEntry = {
+        userId: user.uid,
+        title: project.title || 'Mi Novela Visual',
+        description: project.description || '',
+        coverUrl: cover,
+        updatedAt: Date.now(),
+        projectData: project
+      };
+
+      const docRef = await addDoc(collection(db, 'user_library'), newEntry);
+      setActiveLibraryNovelId(docRef.id);
+      await fetchLibrary();
+      alert('¡Proyecto actual guardado como una nueva novela en tu biblioteca!');
     } catch (e: any) {
       console.error(e);
-      alert('Error al guardar: ' + (e.message || ''));
+      alert('Error al guardar: ' + e.message);
     }
   };
 
-  // Crear novela en blanco y abrir editor
   const handleCreateBlankNovel = () => {
-    if (window.confirm('¿Deseas crear una nueva novela en blanco para editar?')) {
+    if (window.confirm('¿Iniciar una novela en blanco desde cero? Se limpiará el borrador del editor actual.')) {
       resetProjectToDefault();
-      setActiveLibraryNovelId(null);
       onOpenEditor();
     }
   };
 
-  // Importar archivo JSON directo a la biblioteca privada
-  const handleImportJsonFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  const handleDeleteNovel = async (novelId: string, novelTitle: string) => {
+    if (!window.confirm(`¿Eliminar permanentemente "${novelTitle}" de tu biblioteca privada?`)) return;
 
-    if (savedNovels.length >= MAX_NOVELS_LIMIT) {
-      alert(`Has alcanzado el límite de ${MAX_NOVELS_LIMIT} novelas privadas.`);
-      e.target.value = '';
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const content = evt.target?.result as string;
-        const parsed = JSON.parse(content);
-
-        const scenes = (parsed as any).scenes || parsed.chapters?.[0]?.scenes || [];
-        if (!parsed.characters || scenes.length === 0) {
-          alert('El archivo no es un proyecto de novela válido.');
-          return;
-        }
-
-        const cover = parsed.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl || '';
-
-        await addDoc(collection(db, 'user_library'), {
-          userId: user.uid,
-          title: parsed.title || file.name.replace(/\.[^/.]+$/, ''),
-          description: parsed.description || '',
-          coverUrl: cover,
-          updatedAt: Date.now(),
-          projectData: parsed
-        });
-
-        alert(`¡"${parsed.title || 'Novela'}" importada directamente a tu biblioteca!`);
-        fetchLibrary();
-      } catch (err) {
-        console.error(err);
-        alert('Error al importar el archivo JSON.');
+    try {
+      await deleteDoc(doc(db, 'user_library', novelId));
+      if (activeLibraryNovelId === novelId) {
+        setActiveLibraryNovelId(null);
       }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+      setSelectedNovel(null);
+      await fetchLibrary();
+      alert('Novela eliminada.');
+    } catch (err) {
+      console.error('Error al eliminar:', err);
+      alert('No se pudo eliminar la novela.');
+    }
   };
 
   const handleDuplicateNovel = async (novel: SavedNovelItem) => {
     if (savedNovels.length >= MAX_NOVELS_LIMIT) {
-      return alert(`Límite de ${MAX_NOVELS_LIMIT} novelas alcanzado.`);
+      alert(`Límite de ${MAX_NOVELS_LIMIT} novelas alcanzado.`);
+      return;
     }
 
     try {
+      const clonedProject = JSON.parse(JSON.stringify(novel.projectData));
+      clonedProject.title = `${clonedProject.title || 'Novela'} (Copia)`;
+      clonedProject.id = `novel_${Date.now()}`;
+
       await addDoc(collection(db, 'user_library'), {
         userId: user!.uid,
-        title: `${novel.title} (Copia)`,
+        title: clonedProject.title,
         description: novel.description,
-        coverUrl: novel.coverUrl || '',
+        coverUrl: novel.coverUrl,
         updatedAt: Date.now(),
-        projectData: {
-          ...novel.projectData,
-          id: `novel_${Date.now()}`,
-          title: `${novel.title} (Copia)`
-        }
+        projectData: clonedProject
       });
-      alert('Novela duplicada.');
-      fetchLibrary();
-    } catch (e) {
-      console.error(e);
-      alert('Error al duplicar.');
-    }
-  };
 
-  const handleDeleteNovel = async (novelId: string, title: string) => {
-    if (!window.confirm(`¿Eliminar definitivamente "${title}" de tu biblioteca privada?`)) return;
-
-    try {
-      await deleteDoc(doc(db, 'user_library', novelId));
-      setSavedNovels(prev => prev.filter(n => n.id !== novelId));
-      if (selectedNovel?.id === novelId) setSelectedNovel(null);
-      if (activeLibraryNovelId === novelId) setActiveLibraryNovelId(null);
-      alert('Novela eliminada.');
-    } catch (e) {
+      await fetchLibrary();
+      alert('¡Novela duplicada con éxito!');
+    } catch (e: any) {
       console.error(e);
-      alert('Error al eliminar novela.');
+      alert('Error al duplicar: ' + e.message);
     }
   };
 
   const handleCopyPrivateLink = (novelId: string) => {
     const url = `${window.location.origin}${window.location.pathname}?privatePlay=${novelId}`;
     navigator.clipboard.writeText(url);
-    alert('¡Enlace privado copiado! Quien ingrese podrá jugar tu novela directamente.');
+    alert(`Enlace directo copiado al portapapeles:\n${url}`);
   };
 
-  if (!user) {
-    return (
-      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#09090e', color: '#fff', padding: 20 }}>
-        <span style={{ fontSize: 44, marginBottom: 12 }}>📚</span>
-        <h2 style={{ margin: '0 0 8px' }}>Tu Biblioteca Privada</h2>
-        <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 20 }}>Inicia sesión para almacenar tus novelas de forma segura en la nube (máx. 15).</p>
-        <button
-          onClick={loginWithGoogle}
-          style={{ padding: '10px 20px', background: '#ea4335', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
-        >
-          Iniciar sesión con Google
-        </button>
-      </div>
-    );
-  }
+  const handleImportFileToLibrary = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+        if (!parsed || !parsed.characters) {
+          alert('El archivo JSON no tiene la estructura de una novela válida.');
+          return;
+        }
+
+        const scenes = parsed.scenes || parsed.chapters?.[0]?.scenes || [];
+        const cover = parsed.backgroundGallery?.[0]?.url || scenes[0]?.backgroundUrl || '';
+
+        await addDoc(collection(db, 'user_library'), {
+          userId: user.uid,
+          title: parsed.title || 'Novela Importada',
+          description: parsed.description || '',
+          coverUrl: cover,
+          updatedAt: Date.now(),
+          projectData: parsed
+        });
+
+        await fetchLibrary();
+        alert('¡Archivo JSON importado y guardado en tu biblioteca!');
+      } catch (err) {
+        console.error(err);
+        alert('Error al procesar el archivo JSON.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#09090e', color: '#fff', overflowY: 'auto' }}>
-      
-      {/* Cabecera de la Biblioteca */}
-      <div style={{ padding: '14px 20px', background: '#11111a', borderBottom: '1px solid #1f1f2e', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <div>
-          <strong style={{ fontSize: 16 }}>📚 Biblioteca Privada de Novelas</strong>
-          <span style={{ fontSize: 12, color: savedNovels.length >= MAX_NOVELS_LIMIT ? '#ef4444' : '#38bdf8', marginLeft: 10, fontWeight: 700 }}>
-            ({savedNovels.length} / {MAX_NOVELS_LIMIT})
-          </span>
+    <div style={{
+      width: '100%',
+      height: '100%',
+      background: '#09090f',
+      color: '#fff',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      {/* Cabecera */}
+      <div style={{
+        padding: '16px 24px',
+        borderBottom: '1px solid #1f1f2e',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: '#0e0e17',
+        flexWrap: 'wrap',
+        gap: 12
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 24 }}>📚</span>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#f8fafc' }}>Mi Biblioteca Privada</h2>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>
+              {user ? `Almacenamiento en la nube (${savedNovels.length}/${MAX_NOVELS_LIMIT})` : 'Inicia sesión para respaldar tus proyectos'}
+            </span>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Botón Crear en Blanco */}
-          <button
-            onClick={handleCreateBlankNovel}
-            style={{
-              padding: '6px 12px',
-              background: '#161622',
-              border: '1px solid #38bdf844',
-              color: '#38bdf8',
-              borderRadius: 8,
-              fontWeight: 700,
-              fontSize: 12,
-              cursor: 'pointer'
-            }}
-          >
-            ✨ Nueva en Blanco
-          </button>
+          {user ? (
+            <>
+              <button
+                onClick={handleSaveCurrentToNewSlot}
+                title="Guardar el borrador actual en una nueva casilla de la biblioteca"
+                style={{ padding: '7px 12px', background: '#10b981', border: 'none', borderRadius: 8, color: '#042f1f', fontWeight: 800, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                💾 Guardar Borrador Actual
+              </button>
 
-          {/* Botón Importar JSON */}
-          <button
-            onClick={() => fileImportRef.current?.click()}
-            style={{
-              padding: '6px 12px',
-              background: '#161622',
-              border: '1px solid #a855f744',
-              color: '#d8b4fe',
-              borderRadius: 8,
-              fontWeight: 700,
-              fontSize: 12,
-              cursor: 'pointer'
-            }}
-          >
-            📂 Importar Archivo
-          </button>
-          <input
-            type="file"
-            ref={fileImportRef}
-            onChange={handleImportJsonFile}
-            accept=".json"
-            style={{ display: 'none' }}
-          />
+              <button
+                onClick={handleCreateBlankNovel}
+                style={{ padding: '7px 12px', background: '#2563eb', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                ✨ Crear en Blanco
+              </button>
 
-          {/* Guardar Proyecto Actual */}
-          <button
-            onClick={handleSaveCurrentToLibrary}
-            disabled={!activeLibraryNovelId && savedNovels.length >= MAX_NOVELS_LIMIT}
-            style={{
-              padding: '6px 14px',
-              background: (!activeLibraryNovelId && savedNovels.length >= MAX_NOVELS_LIMIT) ? '#334155' : '#10b981',
-              color: (!activeLibraryNovelId && savedNovels.length >= MAX_NOVELS_LIMIT) ? '#94a3b8' : '#042f1f',
-              border: 'none',
-              borderRadius: 8,
-              fontWeight: 800,
-              fontSize: 12,
-              cursor: (!activeLibraryNovelId && savedNovels.length >= MAX_NOVELS_LIMIT) ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {activeLibraryNovelId ? '💾 Guardar Cambios de la Novela Abierta' : '+ Guardar Proyecto Actual'}
-          </button>
+              <button
+                onClick={() => fileImportRef.current?.click()}
+                title="Importar un archivo JSON directamente a tu biblioteca"
+                style={{ padding: '7px 12px', background: '#1e1e2d', border: '1px solid #2d2d3f', borderRadius: 8, color: '#ddd', fontSize: 11, cursor: 'pointer' }}
+              >
+                📂 Importar JSON
+              </button>
+              <input type="file" ref={fileImportRef} onChange={handleImportFileToLibrary} accept=".json" style={{ display: 'none' }} />
+            </>
+          ) : (
+            <button
+              onClick={loginWithGoogle}
+              style={{ padding: '8px 16px', background: '#ea4335', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
+            >
+              Iniciar Sesión con Google
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Grid de Novelas */}
-      <div style={{ padding: 20, flex: 1, maxWidth: 1200, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>Cargando tu biblioteca...</div>
+      {/* Cuadrícula de Proyectos */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        {!user ? (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+            <span style={{ fontSize: 40, display: 'block', marginBottom: 10 }}>🔒</span>
+            <p style={{ margin: 0, fontSize: 14 }}>Inicia sesión para ver y gestionar tus novelas guardadas en la nube.</p>
+          </div>
+        ) : loading ? (
+          <div style={{ textAlign: 'center', padding: 60, color: '#64748b' }}>Cargando tu biblioteca...</div>
         ) : savedNovels.length === 0 ? (
-          <div style={{ background: '#11111a', border: '1px dashed #2d2d42', borderRadius: 14, padding: 40, textAlign: 'center', color: '#71717a' }}>
-            <span style={{ fontSize: 32, display: 'block', marginBottom: 10 }}>📂</span>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+            <span style={{ fontSize: 40, display: 'block', marginBottom: 10 }}>📖</span>
             <p style={{ margin: 0, fontSize: 14 }}>Aún no tienes novelas guardadas en tu biblioteca.</p>
-            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#a1a1aa' }}>Crea una en blanco, importa un archivo JSON o guarda tu borrador activo.</p>
+            <p style={{ margin: '6px 0 0 0', fontSize: 12, color: '#475569' }}>
+              Puedes guardar el borrador del editor haciendo clic en "💾 Guardar Borrador Actual".
+            </p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 16 }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: 16
+          }}>
             {savedNovels.map(novel => {
               const isCurrentlyActive = activeLibraryNovelId === novel.id;
+
               return (
                 <div
                   key={novel.id}
                   onClick={() => setSelectedNovel(novel)}
                   style={{
-                    background: '#141422',
-                    border: isCurrentlyActive ? '2px solid #38bdf8' : '1px solid #28283d',
+                    background: isCurrentlyActive ? '#151528' : '#10101a',
+                    border: `1.5px solid ${isCurrentlyActive ? '#38bdf8' : '#232338'}`,
                     borderRadius: 12,
                     overflow: 'hidden',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
-                    transition: 'all 0.15s ease'
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                    transition: 'transform 0.15s ease, border-color 0.15s ease'
                   }}
                 >
-                  {novel.coverUrl ? (
-                    <img src={novel.coverUrl} alt="" style={{ width: '100%', height: 110, objectFit: 'cover' }} />
-                  ) : (
-                    <div style={{ height: 110, background: '#090910', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
-                      📖
-                    </div>
-                  )}
+                  <div style={{
+                    height: 120,
+                    background: novel.coverUrl ? `url(${novel.coverUrl}) center/cover no-repeat` : '#181826',
+                    position: 'relative'
+                  }}>
+                    {isCurrentlyActive && (
+                      <span style={{ position: 'absolute', top: 8, left: 8, background: '#38bdf8', color: '#042133', fontSize: 9, fontWeight: 900, padding: '3px 6px', borderRadius: 4 }}>
+                        EN EDICIÓN
+                      </span>
+                    )}
+                  </div>
 
-                  <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: 13, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {novel.title}
-                      </strong>
-                      {isCurrentlyActive && (
-                        <span style={{ fontSize: 9, background: '#38bdf822', color: '#38bdf8', padding: '1px 5px', borderRadius: 4, fontWeight: 800 }}>
-                          Abierta
-                        </span>
-                      )}
+                  <div style={{ padding: 12, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 6 }}>
+                    <div>
+                      <strong style={{ fontSize: 14, color: '#f1f5f9', display: 'block' }}>{novel.title}</strong>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0 0', maxHeight: 32, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        {novel.description || 'Sin descripción.'}
+                      </p>
                     </div>
-                    <span style={{ fontSize: 10, color: '#71717a' }}>
-                      Actualizado: {new Date(novel.updatedAt).toLocaleDateString()}
+
+                    <span style={{ fontSize: 9, color: '#64748b' }}>
+                      Modificado: {new Date(novel.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
@@ -342,11 +332,21 @@ export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublish
         )}
       </div>
 
-      {/* Modal de Acciones */}
+      {/* Modal de Acciones de la Novela Seleccionada */}
       {selectedNovel && (
         <div
           onClick={() => setSelectedNovel(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.8)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 130,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
         >
           <div
             onClick={e => e.stopPropagation()}
@@ -362,10 +362,10 @@ export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublish
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              {/* 1. Abrir en Editor (Acción Explícita) */}
               <button
                 onClick={() => {
-                  setProject(selectedNovel.projectData);
-                  setActiveLibraryNovelId(selectedNovel.id);
+                  loadProjectToEditor(selectedNovel.projectData, selectedNovel.id);
                   onOpenEditor();
                 }}
                 style={{ padding: '10px', background: '#2563eb', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}
@@ -373,11 +373,15 @@ export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublish
                 ✏️ Abrir en el Editor
               </button>
 
+              {/* 2. Jugar en Aislamiento */}
               <button
                 onClick={() => {
-                  setProject(selectedNovel.projectData);
-                  setActiveLibraryNovelId(selectedNovel.id);
-                  startPlaytest(undefined, true);
+                  launchPlayer(selectedNovel.projectData, {
+                    isEditorPlaytest: false,
+                    canEdit: true,
+                    novelId: selectedNovel.id,
+                    fromStart: true
+                  });
                   onPlayNovel();
                 }}
                 style={{ padding: '10px', background: '#10b981', border: 'none', borderRadius: 8, color: '#042f1f', fontWeight: 800, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}
@@ -388,10 +392,25 @@ export default function MyLibraryView({ onOpenEditor, onPlayNovel, onOpenPublish
               <button
                 onClick={() => {
                   const proj = selectedNovel.projectData;
-                  setSelectedNovel(null);
-                  onOpenPublishModal(proj);
+                  const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(proj, null, 2));
+                  const anchor = document.createElement('a');
+                  anchor.setAttribute('href', dataStr);
+                  anchor.setAttribute('download', `${proj.title || 'novela'}.json`);
+                  document.body.appendChild(anchor);
+                  anchor.click();
+                  anchor.remove();
                 }}
-                style={{ padding: '10px', background: '#7c3aed', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}
+                style={{ padding: '9px', background: '#1e1e2e', border: '1px solid #333348', borderRadius: 8, color: '#ddd', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}
+              >
+                📥 Descargar Archivo JSON
+              </button>
+
+              <button
+                onClick={() => {
+                  setSelectedNovel(null);
+                  onOpenPublishModal(selectedNovel.projectData);
+                }}
+                style={{ padding: '9px', background: '#7c3aed', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}
               >
                 🚀 Publicar en la Comunidad
               </button>
