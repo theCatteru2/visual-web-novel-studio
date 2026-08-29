@@ -7,7 +7,6 @@ import {
 } from '../types';
 import SaveLoadModal from './SaveLoadModal';
 
-// Coordenadas relativas (%) para Personajes en Escenas (eje Y desde el suelo: bottom)
 const STAGE_SLOTS_X: Record<string, string> = {
   'far-left': '12%',
   'left': '25%',
@@ -28,7 +27,6 @@ const STAGE_SLOTS_Y: Record<string, string> = {
   'sky': '48%'
 };
 
-// Coordenadas relativas (%) para Menús y Pantallas Finales (eje Y desde arriba: top)
 const MENU_SLOTS_X: Record<string, number> = {
   'far-left': 12,
   'left': 25,
@@ -82,6 +80,56 @@ export default function PlayerView() {
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const sfxAudioRef = useRef<HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // -------------------------------------------------------------
+  // PRECARGA DE IMÁGENES AL ABRIR LA NOVELA
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const urlsToPreload = new Set<string>();
+
+    // 1. Sprites y avatares de personajes
+    Object.values(activePlayProject.characters || {}).forEach(char => {
+      if (char.avatarUrl) urlsToPreload.add(char.avatarUrl);
+      if (char.expressions) {
+        Object.values(char.expressions).forEach(exprUrl => {
+          if (exprUrl) urlsToPreload.add(exprUrl);
+        });
+      }
+    });
+
+    // 2. Fondos de galería
+    (activePlayProject.backgroundGallery || []).forEach(bg => {
+      if (bg.url) urlsToPreload.add(bg.url);
+    });
+
+    // 3. Menús y botones personalizados
+    Object.values(activePlayProject.customScreens || {}).forEach(scr => {
+      if (scr.backgroundUrl) urlsToPreload.add(scr.backgroundUrl);
+      scr.elements?.forEach(el => {
+        if (el.customBgImage) urlsToPreload.add(el.customBgImage);
+      });
+    });
+
+    // 4. Fondos dentro de la línea de tiempo
+    const scenes = (activePlayProject as any).scenes || activePlayProject.chapters?.flatMap((c: any) => c.scenes || []) || [];
+    scenes.forEach((sc: any) => {
+      if (sc.backgroundUrl) urlsToPreload.add(sc.backgroundUrl);
+      sc.timeline?.forEach((evt: any) => {
+        if (evt.backgroundUrl) urlsToPreload.add(evt.backgroundUrl);
+      });
+      Object.values(sc.branches || {}).forEach((br: any) => {
+        br.timeline?.forEach((evt: any) => {
+          if (evt.backgroundUrl) urlsToPreload.add(evt.backgroundUrl);
+        });
+      });
+    });
+
+    // Cargar en la caché del navegador
+    urlsToPreload.forEach(url => {
+      const img = new Image();
+      img.src = url;
+    });
+  }, [activePlayProject]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -139,7 +187,7 @@ export default function PlayerView() {
     ? activeMenuScreen.backgroundUrl
     : currentEvent?.backgroundUrl || currentScene?.backgroundUrl;
 
-  // Efecto Typewriter
+  // Typewriter
   useEffect(() => {
     if (typewriterTimerRef.current) {
       clearInterval(typewriterTimerRef.current);
@@ -181,7 +229,7 @@ export default function PlayerView() {
     gameState.currentMenuId
   ]);
 
-  // Efecto de Audio
+  // Audio
   useEffect(() => {
     const activeBgm = activeMenuScreen ? activeMenuScreen.bgmUrl : currentEvent?.bgmUrl;
 
@@ -692,65 +740,63 @@ export default function PlayerView() {
         ) : (
           <>
             {/* 2. MODO ESCENA NARRATIVA REGULAR */}
-           {/* Personajes en Escena */}
-{currentEvent?.type === 'dialogue' &&
-  currentEvent.charactersOnStage?.map((inst: any) => {
-    const charDef = activePlayProject.characters[inst.characterId];
-    if (!charDef) return null;
+            {currentEvent?.type === 'dialogue' &&
+              currentEvent.charactersOnStage?.map((inst: any) => {
+                const charDef = activePlayProject.characters[inst.characterId];
+                if (!charDef) return null;
 
-    const slotX = STAGE_SLOTS_X[String(inst.slot || 'center')] || '50%';
-    const slotY = STAGE_SLOTS_Y[String(inst.verticalSlot || 'floor')] || '0%';
-    const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
+                const slotX = STAGE_SLOTS_X[String(inst.slot || 'center')] || '50%';
+                const slotY = STAGE_SLOTS_Y[String(inst.verticalSlot || 'floor')] || '0%';
+                const scale = SCALE_PERCENTAGES[String(inst.scale || 'medium')] || '68%';
 
-    const resolvedSprite =
-      charDef.expressions?.[inst.expression] ||
-      Object.values(charDef.expressions || {})[0] ||
-      charDef.avatarUrl;
+                const resolvedSprite =
+                  charDef.expressions?.[inst.expression] ||
+                  Object.values(charDef.expressions || {})[0] ||
+                  charDef.avatarUrl;
 
-    const hasAnim = inst.animation && inst.animation !== 'none';
+                const hasAnim = inst.animation && inst.animation !== 'none';
 
-    return (
-      <div
-        key={inst.characterId}
-        style={{
-          position: 'absolute',
-          bottom: slotY,
-          left: slotX,
-          transform: 'translateX(-50%)',
-          transition: 'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
-          pointerEvents: 'none',
-          zIndex: 10,
-          height: scale,
-          filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
-        }}
-      >
-        {/* Contenedor de Animación: Cambia su key SOLO cuando hay una animación para re-dispararla */}
-        <div
-          key={hasAnim ? `anim_${inst.animation}_${gameState.currentEventIndex}` : 'no_anim'}
-          style={{
-            height: '100%',
-            width: 'auto',
-            animation: getAnimationKeyframes(inst.animation)
-          }}
-        >
-          {/* Imagen persistente: Nunca parpadea porque su key depende solo del sprite */}
-          <img
-            key={`sprite_${inst.characterId}_${inst.expression}`}
-            src={resolvedSprite}
-            alt={charDef.name}
-            draggable={false}
-            decoding="sync"
-            style={{
-              display: 'block',
-              height: '100%',
-              width: 'auto',
-              objectFit: 'contain'
-            }}
-          />
-        </div>
-      </div>
-    );
-  })}
+                return (
+                  <div
+                    key={inst.characterId}
+                    style={{
+                      position: 'absolute',
+                      bottom: slotY,
+                      left: slotX,
+                      transform: 'translateX(-50%)',
+                      transition:
+                        'bottom 0.25s ease, left 0.25s ease, height 0.25s ease',
+                      pointerEvents: 'none',
+                      zIndex: 10,
+                      height: scale,
+                      filter: `brightness(${(inst.brightness ?? 100) / 100}) drop-shadow(0 8px 16px rgba(0,0,0,0.5))`
+                    }}
+                  >
+                    <div
+                      key={hasAnim ? `anim_${inst.animation}_${gameState.currentEventIndex}` : 'no_anim'}
+                      style={{
+                        height: '100%',
+                        width: 'auto',
+                        animation: getAnimationKeyframes(inst.animation)
+                      }}
+                    >
+                      <img
+                        key={`sprite_${inst.characterId}_${inst.expression}`}
+                        src={resolvedSprite}
+                        alt={charDef.name}
+                        draggable={false}
+                        decoding="sync"
+                        style={{
+                          display: 'block',
+                          height: '100%',
+                          width: 'auto',
+                          objectFit: 'contain'
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
 
             {/* Opciones de Elección */}
             {currentEvent?.type === 'choice' && (
