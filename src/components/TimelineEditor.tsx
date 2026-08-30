@@ -82,6 +82,19 @@ export default function TimelineEditor() {
   const [showActorsDropdown, setShowActorsDropdown] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
 
+  // Estado del modal de recorte y optimización de fondos
+  const [cropModalState, setCropModalState] = useState<{
+    isOpen: boolean;
+    rawImageSrc: string;
+    fileName: string;
+    offsetY: number;
+  }>({
+    isOpen: false,
+    rawImageSrc: '',
+    fileName: '',
+    offsetY: 50 // Porcentaje de alineación vertical inicial (centrado)
+  });
+
   const [sidebarWidth, setSidebarWidth] = useState(200);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -238,6 +251,7 @@ export default function TimelineEditor() {
     setShowBranchesModal(false);
   };
 
+  // Al seleccionar el archivo, abrimos el modal de recorte
   const handleImportBgToGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -245,20 +259,62 @@ export default function TimelineEditor() {
     const reader = new FileReader();
     reader.onload = (uploadEvent) => {
       if (typeof uploadEvent.target?.result === 'string') {
-        const bgUrl = uploadEvent.target.result;
+        setCropModalState({
+          isOpen: true,
+          rawImageSrc: uploadEvent.target.result,
+          fileName: file.name.replace(/\.[^/.]+$/, ''),
+          offsetY: 50
+        });
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // Procesa y comprime la imagen a 1280x720 16:9 en canvas antes de guardarla
+  const handleConfirmCroppedBackground = () => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const targetWidth = 1280;
+      const targetHeight = 720;
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+
+      if (ctx) {
+        const targetAspect = 16 / 9;
+        const imgAspect = img.width / img.height;
+        let sx = 0, sy = 0, sWidth = img.width, sHeight = img.height;
+
+        if (imgAspect > targetAspect) {
+          sWidth = img.height * targetAspect;
+          sx = (img.width - sWidth) / 2;
+        } else {
+          sHeight = img.width / targetAspect;
+          const availableScroll = img.height - sHeight;
+          sy = availableScroll * (cropModalState.offsetY / 100);
+        }
+
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+        const optimizedUrl = canvas.toDataURL('image/webp', 0.85);
+
         const newBgItem = {
           id: `bg_${Date.now()}`,
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          url: bgUrl
+          name: cropModalState.fileName || 'Fondo 16:9',
+          url: optimizedUrl
         };
+
         setProject(prev => ({
           ...prev,
           backgroundGallery: [...(prev.backgroundGallery || []), newBgItem]
         }));
       }
+
+      setCropModalState({ isOpen: false, rawImageSrc: '', fileName: '', offsetY: 50 });
     };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    img.src = cropModalState.rawImageSrc;
   };
 
   const handleSelectBackground = (url: string) => {
@@ -978,7 +1034,7 @@ export default function TimelineEditor() {
                     </button>
                   </div>
 
-                  {/* Destino de la Opción (Ramas o Menús/Pantallas Finales) */}
+                  {/* Destino de la Opción */}
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', background: '#0d0d14', padding: 4, borderRadius: 6 }}>
                     <span style={{ fontSize: 10, color: '#c084fc', fontWeight: 700 }}>Destino:</span>
                     <select
@@ -1155,7 +1211,6 @@ export default function TimelineEditor() {
               gap: isPortrait ? 3 : 8
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                {/* Selector de Hablante con opción 'none' */}
                 <select
                   value={currentEvent.speakerId}
                   onChange={(e) => updateTimelineEvent(activeFrameIdx, { ...currentEvent, speakerId: e.target.value })}
@@ -1177,7 +1232,6 @@ export default function TimelineEditor() {
                 </select>
 
                 <div style={{ display: isPortrait ? 'none' : 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* Destino de Salto en Diálogo (Ramas o Menús) */}
                   <select
                     value={currentEvent.jumpToMenuId ? `menu:${currentEvent.jumpToMenuId}` : (currentEvent.jumpToBranchId || '')}
                     onChange={(e) => {
@@ -1820,7 +1874,10 @@ export default function TimelineEditor() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ width: '100%', maxWidth: 540, background: '#12121a', border: '1px solid #333', borderRadius: 12, padding: 16, maxHeight: '80vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#fff' }}>Galería de Fondos (Viñeta #{activeFrameIdx + 1})</span>
+              <div>
+                <span style={{ fontWeight: 'bold', color: '#fff', fontSize: 13, display: 'block' }}>Galería de Fondos (Viñeta #{activeFrameIdx + 1})</span>
+                <span style={{ fontSize: 10, color: '#38bdf8' }}>📐 Recomendado: 1920x1080 o 1280x720 (16:9)</span>
+              </div>
               <button onClick={() => setShowBgGalleryModal(false)} style={{ background: 'none', border: 'none', color: '#999', fontSize: 16, cursor: 'pointer' }}>✕</button>
             </div>
 
@@ -1869,7 +1926,7 @@ export default function TimelineEditor() {
                 onClick={() => bgImportInputRef.current?.click()}
                 style={{ flex: 1, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
               >
-                + Importar Fondo Personalizado
+                + Importar y Ajustar Fondo (16:9)
               </button>
               <button
                 onClick={() => { setShowBgGalleryModal(false); setShowAssetStore(true); }}
@@ -1879,6 +1936,70 @@ export default function TimelineEditor() {
               </button>
             </div>
             <input type="file" ref={bgImportInputRef} onChange={handleImportBgToGallery} accept="image/*" style={{ display: 'none' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Modal Interactivo de Recorte y Previsualización 16:9 */}
+      {cropModalState.isOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }}>
+          <div style={{ width: '100%', maxWidth: 580, background: '#12121b', border: '2px solid #38bdf8', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 25px 60px rgba(0,0,0,0.9)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <strong style={{ color: '#fff', fontSize: 14 }}>✂️ Ajuste y Previsualización (16:9)</strong>
+                <div style={{ fontSize: 10, color: '#94a3b8' }}>Se optimizará a 1280x720 para eliminar cualquier congelamiento.</div>
+              </div>
+              <button onClick={() => setCropModalState({ isOpen: false, rawImageSrc: '', fileName: '', offsetY: 50 })} style={{ background: 'none', border: 'none', color: '#888', fontSize: 16, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {/* Visor de previsualización 16:9 con ajuste dinámico */}
+            <div style={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '16 / 9',
+              borderRadius: 8,
+              overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.2)',
+              backgroundImage: `url(${cropModalState.rawImageSrc})`,
+              backgroundSize: 'cover',
+              backgroundPosition: `center ${cropModalState.offsetY}%`,
+              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.6)'
+            }}>
+              <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.7)', color: '#38bdf8', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 'bold' }}>
+                Vista Previa 16:9
+              </div>
+            </div>
+
+            {/* Control deslizante de encuadre vertical */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#ccc' }}>
+                <span>↕️ Ajustar encuadre vertical:</span>
+                <span>{cropModalState.offsetY}%</span>
+              </div>
+              <input 
+                type="range"
+                min="0"
+                max="100"
+                value={cropModalState.offsetY}
+                onChange={(e) => setCropModalState(prev => ({ ...prev, offsetY: Number(e.target.value) }))}
+                style={{ width: '100%', accentColor: '#38bdf8' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button
+                onClick={() => setCropModalState({ isOpen: false, rawImageSrc: '', fileName: '', offsetY: 50 })}
+                style={{ flex: 1, padding: 8, background: 'rgba(255,255,255,0.06)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmCroppedBackground}
+                style={{ flex: 2, padding: 8, background: '#38bdf8', color: '#000', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+              >
+                ✓ Aplicar y Guardar Fondo
+              </button>
+            </div>
           </div>
         </div>
       )}
