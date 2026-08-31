@@ -1712,38 +1712,81 @@ export default function TimelineEditor() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <label style={{ fontSize: 11, color: '#aaa' }}>Expresiones disponibles:</label>
                 <button
-                  onClick={() => {
-                    const tag = prompt('Nombre para la nueva expresión (ej. feliz, enojada):');
-                    if (!tag) return;
-                    
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.accept = 'image/*';
-                    input.onchange = (e: any) => {
-                      const file = e.target?.files?.[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = (evt) => {
-                        if (typeof evt.target?.result === 'string') {
-                          const spriteUrl = evt.target.result;
-                          const updatedChar = {
-                            ...editingCharDef,
-                            expressions: { ...editingCharDef.expressions, [tag.toLowerCase()]: spriteUrl }
-                          };
-                          setProject(prev => ({
-                            ...prev,
-                            characters: { ...prev.characters, [editingCharDef.id]: updatedChar }
-                          }));
-                        }
-                      };
-                      reader.readAsDataURL(file);
-                    };
-                    input.click();
-                  }}
-                  style={{ background: 'rgba(56,189,248,0.15)', border: '1px dashed #38bdf8', color: '#38bdf8', borderRadius: 4, padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  + Importar Sprite
-                </button>
+  onClick={() => {
+    const tag = prompt('Nombre para la nueva expresión (ej. feliz, enojada):');
+    if (!tag) return;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/webp,image/jpeg';
+    input.onchange = (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        if (typeof evt.target?.result === 'string') {
+          const img = new Image();
+          img.onload = () => {
+            // Limitar altura máxima a 1080px manteniendo la proporción
+            const maxHeight = 1080;
+            let targetWidth = img.width;
+            let targetHeight = img.height;
+
+            if (img.height > maxHeight) {
+              targetWidth = Math.round((img.width * maxHeight) / img.height);
+              targetHeight = maxHeight;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext('2d');
+
+            if (ctx) {
+              ctx.clearRect(0, 0, targetWidth, targetHeight);
+              ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+              // Comprime a WebP conservando canal alfa transparente
+              const optimizedSpriteUrl = canvas.toDataURL('image/webp', 0.85);
+
+              const updatedChar = {
+                ...editingCharDef,
+                expressions: {
+                  ...editingCharDef.expressions,
+                  [tag.toLowerCase()]: optimizedSpriteUrl
+                }
+              };
+
+              setProject(prev => ({
+                ...prev,
+                characters: {
+                  ...prev.characters,
+                  [editingCharDef.id]: updatedChar
+                }
+              }));
+            }
+          };
+          img.src = evt.target.result;
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }}
+  style={{
+    background: 'rgba(56,189,248,0.15)',
+    border: '1px dashed #38bdf8',
+    color: '#38bdf8',
+    borderRadius: 4,
+    padding: '3px 8px',
+    fontSize: 10,
+    fontWeight: 700,
+    cursor: 'pointer'
+  }}
+>
+  + Importar Sprite
+</button>
               </div>
 
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', maxHeight: 130, overflowY: 'auto' }}>
